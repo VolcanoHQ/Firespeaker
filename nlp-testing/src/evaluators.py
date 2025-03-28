@@ -1,19 +1,25 @@
 # src/evaluators.py
+# Import required libraries
+import spacy
+import nltk
+from nltk.sentiment.vader import SentimentIntensityAnalyzer
+import pandas as pd
+import matplotlib.pyplot as plt
+import time
 import os
 import json
-import time
+import numpy as np
+from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import datetime
+import seaborn as sns
+from pathlib import Path
+import psutil
+import gc  # For garbage collection
+from tqdm.notebook import tqdm  # For progress bars
 
 def create_ground_truth(sample_id, text, dialogues=None, characters=None, emotions=None):
-    """
-    Create or update ground truth annotations for a text sample
-    
-    Parameters:
-    - sample_id: identifier for the sample
-    - text: the text content
-    - dialogues: list of dialogue text spans
-    - characters: list of character names
-    - emotions: list of (text_span, emotion) tuples
-    """
+    """Create or update ground truth annotations for a text sample"""
     ground_truth = {
         "sample_id": sample_id,
         "text": text,
@@ -23,11 +29,19 @@ def create_ground_truth(sample_id, text, dialogues=None, characters=None, emotio
     }
     
     # Save to JSON
-    os.makedirs("data/ground_truth", exist_ok=True)
-    with open(f"data/ground_truth/{sample_id}.json", "w") as f:
+    os.makedirs("../data/ground_truth", exist_ok=True)
+    with open(f"../data/ground_truth/{sample_id.replace('/', '_')}.json", "w") as f:
         json.dump(ground_truth, f, indent=2)
     
     return ground_truth
+
+def load_ground_truth(sample_id):
+    """Load ground truth annotations for a text sample"""
+    path = f"../data/ground_truth/{sample_id.replace('/', '_')}.json"
+    if os.path.exists(path):
+        with open(path, "r") as f:
+            return json.load(f)
+    return None
 
 def calculate_metrics(predictions, ground_truth):
     """

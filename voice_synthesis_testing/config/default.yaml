@@ -1,0 +1,24 @@
+# config/default.yaml
+data:
+  sample_rate: 22050
+  test_duration: 5
+  max_samples: 1000
+  
+model:
+  type: "transformer"
+  default_model: "base_v2.pt"
+  precision: "float32"
+  use_jit: true
+  
+testing:
+  batch_size: 8
+  metrics: ["mcd", "wer", "naturalness"]
+  
+system:
+  num_workers: 4
+  seed: 42
+  
+visualization:
+  dpi: 150
+  fig_width: 12
+  fig_height: 6

@@ -1,0 +1,22 @@
+{
+  "sample_id": "category/sample1.txt",
+  "text": "This is a great movie! I absolutely loved it. \"But the ending was so sad,\" she said.",
+  "dialogues": [
+    "But the ending was so sad,"
+  ],
+  "characters": [],
+  "emotions": [
+    [
+      "This is a great movie!",
+      0.8
+    ],
+    [
+      "I absolutely loved it.",
+      0.9
+    ],
+    [
+      "But the ending was so sad,",
+      -0.7
+    ]
+  ]
+}
