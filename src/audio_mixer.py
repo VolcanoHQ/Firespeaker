@@ -177,6 +177,64 @@ class AudioMixer:
         
         return inputs, profile
 
+    def concatenate_voice_segments(
+        self,
+        voice_files: List[str],
+        output_path: str,
+        silence_gap_sec: float = 0.5
+    ) -> bool:
+        """
+        Stitches multiple individual sentence WAV clips together in chronological order,
+        inserting exact-length silence intervals in between to compile a single unified voice track.
+        """
+        if not voice_files:
+            logger.error("No voice files provided for chronological stitching.")
+            return False
+            
+        logger.info(f"Stitching {len(voice_files)} individual voice clips into a single timeline: {output_path}")
+        
+        # Filter out non-existent files
+        valid_files = [f for f in voice_files if os.path.exists(f)]
+        if not valid_files:
+            logger.error("All provided voice clip files are missing from disk.")
+            return False
+            
+        try:
+            # Open first valid file to extract target audio format parameters
+            with wave.open(valid_files[0], "rb") as w_first:
+                params = w_first.getparams()
+                sample_rate = params.framerate
+                sample_width = params.sampwidth
+                channels = params.nchannels
+                
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            
+            with wave.open(output_path, "wb") as w_out:
+                w_out.setparams(params)
+                
+                for idx, filepath in enumerate(valid_files):
+                    with wave.open(filepath, "rb") as w_in:
+                        # Safety check: ensure formats match
+                        if w_in.getframerate() != sample_rate or w_in.getsampwidth() != sample_width or w_in.getnchannels() != channels:
+                            logger.warning(f"Audio format mismatch in {filepath}. Attempting to copy frames regardless.")
+                        
+                        frames = w_in.readframes(w_in.getnframes())
+                        w_out.writeframes(frames)
+                        
+                    # Add silence gap between files (but not after the final file)
+                    if idx < len(valid_files) - 1:
+                        num_silent_samples = int(sample_rate * silence_gap_sec)
+                        # Silent samples in 16-bit PCM are represented by 0x00 bytes
+                        # Each sample takes: sample_width * channels bytes
+                        silence_bytes = bytes(num_silent_samples * sample_width * channels)
+                        w_out.writeframes(silence_bytes)
+                        
+            logger.info("Chronological voice timeline compiled successfully.")
+            return True
+        except Exception as e:
+            logger.error(f"Error during audio compilation stitching: {e}")
+            return False
+
     def mix_tracks(
         self,
         voice_path: str,

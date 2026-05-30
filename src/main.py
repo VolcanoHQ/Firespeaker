@@ -148,12 +148,16 @@ class FirespeakerPipeline:
         
         for idx, line in enumerate(script_data["script"]):
             line_wav = os.path.join(self.outputs_dir, f"line_{line['line_id']}.wav")
-            print(f"  - Synthesizing Line {line['line_number']} [{line['character']} - Mood: {line['emotion']}]: '{line['text'][:40]}...'")
+            text_to_synth = line["dialogue"] if line["dialogue"] else line["narration_before"]
+            if not text_to_synth:
+                text_to_synth = "..."
+                
+            print(f"  - Synthesizing Line {line['line_number']} [{line['character']} - Mood: {line['emotion']}]: '{text_to_synth[:40]}...'")
             
             # Synthesize line safely (drawer verified inside)
             res = self.synth.synthesize_line(
                 character_name=line["character"],
-                dialogue_text=line["text"],
+                dialogue_text=text_to_synth,
                 target_emotion=line["emotion"],
                 output_wav_path=line_wav
             )
@@ -178,13 +182,22 @@ class FirespeakerPipeline:
                 
         # 4. Multi-Track Sidechain Ducking & ACX Compliant Mastering (Component 3)
         print("\nStep 4: Executing dynamic sidechain compression & ACX mastering...")
-        # Since individual files were generated, we merge voice tracks or mix directly
-        # For the integration pipeline test, we use the first synthesized voice track
-        test_voice = voice_files[0] if voice_files else os.path.join(self.outputs_dir, "test_voice.wav")
-        self.mixer._generate_sine_wav(test_voice, 440.0, 3.0) # Synthesize a valid test voice tone
+        # Compile all individual voice tracks into a single sequenced voice timeline
+        compiled_voice = os.path.join(self.workspace_dir, "compiled_voice.wav")
+        print("  - Stitching individual voice segments chronologically into a single chapter track...")
+        stitch_success = self.mixer.concatenate_voice_segments(
+            voice_files=voice_files,
+            output_path=compiled_voice,
+            silence_gap_sec=0.5
+        )
         
+        if not stitch_success:
+            logger.error("Failed to compile voice timeline. Falling back to a synthetic tone for master mix.")
+            compiled_voice = os.path.join(self.outputs_dir, "fallback_test_voice.wav")
+            self.mixer._generate_sine_wav(compiled_voice, 440.0, 3.0)
+            
         self.mixer.mix_tracks(
-            voice_path=test_voice,
+            voice_path=compiled_voice,
             music_path=ambient_music_asset,
             sfx_path=sfx_asset_path,
             output_path=output_master_wav,

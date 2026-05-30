@@ -259,10 +259,57 @@ class VoiceSynthesizer:
         logger.info(f"  - Target emotion: '{target_emotion}'")
         logger.info(f"  - Selected reference: '{optimal_ref_path}'")
         
-        # Mock/Simulated synthesis output for testing
+        # Mock/Simulated synthesis output for testing (produces a valid physical WAV)
         os.makedirs(os.path.dirname(output_wav_path), exist_ok=True)
-        with open(output_wav_path, "wb") as f:
-            f.write(b"MOCK_WAV_HEADER_DATA_FIRESPEAKER_AUDIO")
+        try:
+            import numpy as np
+            import wave
+            
+            # Estimate duration based on word count (~170 words per minute or 0.35s per word)
+            words = len(dialogue_text.split())
+            duration_sec = max(1.2, words * 0.35)
+            
+            sample_rate = 22050
+            num_samples = int(sample_rate * duration_sec)
+            t = np.arange(num_samples) / float(sample_rate)
+            
+            # Base frequency pitch determined by character identity
+            char_lower = character_name.lower()
+            if "narrator" in char_lower:
+                base_freq = 180.0
+            elif "holmes" in char_lower:
+                base_freq = 280.0
+            elif "watson" in char_lower:
+                base_freq = 140.0
+            else:
+                # Deterministic pitch for other characters using hash
+                base_freq = 200.0 + (abs(hash(character_name)) % 100)
+                
+            # Apply a 4Hz syllabic volume envelope to simulate speech word beats
+            envelope = 0.5 * (1.0 + np.sin(2 * np.pi * 4.0 * t))
+            # Smooth fade in/out to prevent audio pops
+            fade_len = min(1000, num_samples // 10)
+            fade_window = np.ones(num_samples, dtype=np.float32)
+            fade_window[:fade_len] = np.linspace(0.0, 1.0, fade_len)
+            fade_window[-fade_len:] = np.linspace(1.0, 0.0, fade_len)
+            
+            envelope *= fade_window
+            
+            # Generate modulated tone
+            audio_data = np.sin(2 * np.pi * base_freq * t) * envelope * 16384
+            data_int16 = audio_data.astype(np.int16)
+            
+            with wave.open(output_wav_path, "wb") as w_mock:
+                w_mock.setnchannels(1)
+                w_mock.setsampwidth(2)
+                w_mock.setframerate(sample_rate)
+                w_mock.writeframes(data_int16.tobytes())
+                
+            logger.info(f"Mock speech WAV generated: {output_wav_path} (Duration: {duration_sec:.2f}s | Freq: {base_freq}Hz)")
+        except Exception as e:
+            logger.warning(f"Failed to generate physical mock wave: {e}. Falling back to standard flat mock file.")
+            with open(output_wav_path, "wb") as f:
+                f.write(b"MOCK_WAV_HEADER_DATA_FIRESPEAKER_AUDIO")
             
         # Log generated output to MemPalace Rooms
         self.palace.log_room(
