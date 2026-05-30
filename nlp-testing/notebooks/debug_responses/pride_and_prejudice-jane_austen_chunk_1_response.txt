@@ -1,0 +1,21 @@
+```
+{
+    "dialogues": [],
+    "characters": ["Jane Austen", "Walt Whitman", "George Saintsbury", "Hugh Thomson", "J. Comyns Carr", "John Thorpe", "Mr. Bennet", "Lydia Bennet", "Mr. Shapely", "Mrs. Musgrove", "Mr. Goldwin Smith", "Mary Wollstonecraft", "Frank Churchill", "Jane Fairfax", "Mr. Addison", "Swift", "Fielding", "Smollett", "Miss Burney", "Mr. Spectator", "Edmund", "Fanny", "Crawford", "Elizabeth", "Darcy", "Bingley", "Mr. Collins", "Mrs. Norris"],
+    "emotions": [
+        ["a fine and just distinction between loving by allowance and loving with personal love", 0.5],
+        ["a curious consequence with it", 0.2],
+        ["a great number of common subdivisions of quality--demureness, extreme minuteness of touch, avoidance of loud tones and glaring effects", 0.6],
+        ["a certain not inhuman or unamiable cruelty", 0.3],
+        ["an insatiable and ruthless delight in roasting and cutting up a fool", 0.4],
+        ["a ladylike and intelligent Lydia Bennet", 0.5],
+        ["a rather more ladylike and intelligent Lydia Bennet in the days of Lydia's great-grandmother", 0.6],
+        ["gentle and oblique satire", 0.4],
+        ["the perception of the other side, the sense of the accepted hells beneath", 0.5],
+        ["the consciousness that motives are nearly always mixed, and that to seem is not identical with to be", 0.6],
+        ["an epicurean delight in dissecting, in displaying, in setting at work her fools and her mean persons", 0.7],
+        ["the perfection of her art, combined with the narrowness of her field", 0.8],
+        ["the cosmic quality of her world is at least as eminent as the littleness", 0.7]
+    ]
+}
+```

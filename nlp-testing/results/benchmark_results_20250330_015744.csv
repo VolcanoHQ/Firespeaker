@@ -1,0 +1,25 @@
+sample_id,sample_length,task,library,time_taken,error,merged,chunk_id,chunk_num,total_chunks,chunk_size,chunk_position,count,sample_results,chars_per_second,text_length,chunks_processed
+sample2.txt,67,ner,spacy,2.25,,False,sample2.txt#full,1.0,1,67.0,only,0.0,[],,,
+sample2.txt,67,ner,nltk,2.125,,False,sample2.txt#full,1.0,1,67.0,only,3.0,"[""Jane Doe"", ""John"", ""Smith""]",,,
+sample2.txt,67,sentiment,spacy,7.734000000000378,,False,sample2.txt#full,1.0,1,67.0,only,1.0,"[[""John Smith went to London. He met Jane Doe.  The food was terrible."", -1.0]]",,,
+sample2.txt,67,sentiment,nltk,0.0,,False,sample2.txt#full,1.0,1,67.0,only,3.0,"[[""The food was terrible."", -0.477], [""John Smith went to London."", 0.0], [""He met Jane Doe."", 0.0]]",,,
+sample2.txt,67,dialogue_detection,spacy,0.0,,False,sample2.txt#full,1.0,1,67.0,only,0.0,[],,,
+sample2.txt,67,dialogue_detection,nltk,0.0,,False,sample2.txt#full,1.0,1,67.0,only,0.0,[],,,
+sample2.txt,67,processing_speed,spacy,0.0,Task function processing_speed_spacy not found,False,sample2.txt#full,1.0,1,67.0,only,,,0.0,,
+sample2.txt,67,processing_speed,nltk,0.0,Task function processing_speed_nltk not found,False,sample2.txt#full,1.0,1,67.0,only,,,0.0,,
+sample1.txt,84,ner,spacy,2.20299999999952,,False,sample1.txt#full,1.0,1,84.0,only,0.0,[],,,
+sample1.txt,84,ner,nltk,2.186999999999898,,False,sample1.txt#full,1.0,1,84.0,only,0.0,[],,,
+sample1.txt,84,sentiment,spacy,7.67200000000048,,False,sample1.txt#full,1.0,1,84.0,only,1.0,"[[""This is a great movie! I absolutely loved it. \""But the ending was so sad,\"" she said."", 0.4]]",,,
+sample1.txt,84,sentiment,nltk,0.0,,False,sample1.txt#full,1.0,1,84.0,only,3.0,"[[""This is a great movie!"", 0.659], [""I absolutely loved it."", 0.636], [""\""But the ending was so sad,\"" she said."", 0.0]]",,,
+sample1.txt,84,dialogue_detection,spacy,0.0,,False,sample1.txt#full,1.0,1,84.0,only,1.0,"[[null, ""But the ending was so sad,""]]",,,
+sample1.txt,84,dialogue_detection,nltk,0.48400000000037835,,False,sample1.txt#full,1.0,1,84.0,only,1.0,"[[null, ""But the ending was so sad,""]]",,,
+sample1.txt,84,processing_speed,spacy,0.0,Task function processing_speed_spacy not found,False,sample1.txt#full,1.0,1,84.0,only,,,0.0,,
+sample1.txt,84,processing_speed,nltk,0.0,Task function processing_speed_nltk not found,False,sample1.txt#full,1.0,1,84.0,only,,,0.0,,
+Whispers_In_Emerald_Valley.txt,18115,ner,spacy,2.2819999999992433,,True,,,2,,,0.0,,,,2.0
+Whispers_In_Emerald_Valley.txt,18115,ner,nltk,146.06200000000172,,True,,,2,,,8.0,,,,2.0
+Whispers_In_Emerald_Valley.txt,18115,sentiment,spacy,5.25,,True,,,2,,,0.0,,,,2.0
+Whispers_In_Emerald_Valley.txt,18115,sentiment,nltk,0.06299999999828287,,True,,,2,,,9.0,,,,2.0
+Whispers_In_Emerald_Valley.txt,18115,dialogue_detection,spacy,0.125,,True,,,2,,,10.0,"[[null, ""Just a bit further,""], [null, ""Shouldn't we have reached the site by now? My GPS is showing we've gone nearly two miles past the coordinates you mentioned.""], [null, ""The electromagnetic disturbances in this valley render GPS unreliable,""], [null, ""That's why Professor Martinez provided this map. Old-fashioned, yes, but far more dependable in areas like this.""], [null, ""If you say so,""]]",,,2.0
+Whispers_In_Emerald_Valley.txt,18115,dialogue_detection,nltk,14.562000000001717,,True,,,2,,,10.0,"[[""Martinez"", ""Just a bit further,""], [null, ""The electromagnetic disturbances in this valley render GPS unreliable,""], [null, ""If you say so,""], [null, ""It's just that we're burning daylight, and you know what the locals said about being in these woods after dark.""], [null, ""ll be telling me you""]]",,,2.0
+Whispers_In_Emerald_Valley.txt,18115,processing_speed,spacy,0.0,Chunk 1: Task function processing_speed_spacy not found; Chunk 2: Task function processing_speed_spacy not found,True,,,2,,,,,0.0,18115.0,2.0
+Whispers_In_Emerald_Valley.txt,18115,processing_speed,nltk,0.0,Chunk 1: Task function processing_speed_nltk not found; Chunk 2: Task function processing_speed_nltk not found,True,,,2,,,,,0.0,18115.0,2.0

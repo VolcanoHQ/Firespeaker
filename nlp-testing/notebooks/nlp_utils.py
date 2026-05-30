@@ -79,20 +79,29 @@ def init_worker():
     global nlp_lg
     try:
         spacy.prefer_gpu()  # Try to use GPU.  MUST be before spacy.load()
-        nlp_lg = spacy.load("en_core_web_trf")  # Load the transformer model!
-        logger.info(f"Worker {os.getpid()}: spaCy model loaded.")
+        try:
+            nlp_lg = spacy.load("en_core_web_trf")  # Load the transformer model!
+            logger.info(f"Worker {os.getpid()}: spaCy en_core_web_trf model loaded.")
+        except OSError:
+            logger.warning(f"Worker {os.getpid()}: en_core_web_trf not found. Falling back to en_core_web_sm.")
+            nlp_lg = spacy.load("en_core_web_sm")
+            logger.info(f"Worker {os.getpid()}: spaCy en_core_web_sm model loaded.")
+
         if spacy.util.has_gpu():
             logger.info(f"Worker {os.getpid()}: spaCy model loaded on GPU.")
         else:
             logger.warning(f"Worker {os.getpid()}: spaCy model loaded on CPU.")
 
         if "spacytextblob" not in nlp_lg.pipe_names:
-            from spacytextblob.spacytextblob import SpacyTextBlob
-            nlp_lg.add_pipe("spacytextblob")
-            logger.info(f"Worker {os.getpid()}: spacytextblob added to pipeline.")
+            try:
+                from spacytextblob.spacytextblob import SpacyTextBlob
+                nlp_lg.add_pipe("spacytextblob")
+                logger.info(f"Worker {os.getpid()}: spacytextblob added to pipeline.")
+            except ImportError:
+                logger.warning(f"Worker {os.getpid()}: spacytextblob not available. Skipping sentiment pipe addition.")
 
     except OSError as e:
-        logger.error(f"Worker {os.getpid()}: Could not load spacy model: {e}.")
+        logger.error(f"Worker {os.getpid()}: Could not load any spaCy model: {e}.")
         raise
     except Exception as e:
         logger.error(f"Worker {os.getpid()}: Error during initialization: {e}")
@@ -612,14 +621,28 @@ def _process_chunk_or_sample(sample_id: str, text: str, chunk_id: str | None = N
     if total_chunks is not None and not isinstance(total_chunks, int):
         raise TypeError("total_chunks must be an integer or None")
 
+    global nlp_lg
+    if nlp_lg is None:
+        try:
+            init_worker()
+        except Exception as e:
+            logger.error(f"Failed to dynamically initialize worker: {e}")
+            
     try:
         results = benchmark_performance(
             text=text,
             task="all",
             libraries=["spacy", "nltk"]
         )
-        # ADD THESE LINES for GPU check:
-        if nlp_lg.device_type == 'cuda':  # nlp_lg is accessible within this function
+        # SAFE GPU check:
+        is_gpu = False
+        try:
+            import torch
+            is_gpu = torch.cuda.is_available()
+        except Exception:
+            pass
+            
+        if is_gpu:
             logger.info(f"Processing {sample_id=}, {chunk_id=} on GPU.")
         else:
             logger.warning(f"Processing {sample_id=}, {chunk_id=} on CPU.")
@@ -1491,17 +1514,18 @@ if __name__ == "__main__":
 
 # Cell 18: Example Usage - Validation and Visualization (Revised - from original Cell 17)
 
-# --- Validate Results ---
-if results_df is not None and not results_df.empty:
-    validation_df = validate_against_ground_truth(results_df, samples)
+if __name__ == "__main__":
+    # --- Validate Results ---
+    if 'results_df' in globals() and results_df is not None and not results_df.empty:
+        validation_df = validate_against_ground_truth(results_df, samples)
 
-    # --- Create Visualizations ---
-    current_timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    create_visualizations(results_df, Path(RESULTS_DIR), current_timestamp)
-else:
-    logger.warning(
-        "No results to validate or visualize. Please check the previous steps."
-    )
+        # --- Create Visualizations ---
+        current_timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        create_visualizations(results_df, Path(RESULTS_DIR), current_timestamp)
+    else:
+        logger.warning(
+            "No results to validate or visualize. Please check the previous steps."
+        )
 
 
 def remove_temp_files(directory: str = CORPUS_DIR) -> None:
@@ -1603,9 +1627,10 @@ def release_resources() -> None:
     clear_memory()  # We already have a function for this!
 
 
-# Call the cleanup functions:
-remove_temp_files()
-close_database_connections()
-release_resources()
+if __name__ == "__main__":
+    # Call the cleanup functions:
+    remove_temp_files()
+    close_database_connections()
+    release_resources()
 
-logger.info("Benchmark run complete. Cleanup performed.")
+    logger.info("Benchmark run complete. Cleanup performed.")

@@ -1,0 +1,29 @@
+sample_id,sample_length,task,library,time_taken,error,merged,chunk_id,chunk_num,total_chunks,chunk_size,chunk_position,count,sample_results,chars_per_second,text_length,chunks_processed
+sample2.txt,67,ner,spacy,3.610000000000582,,False,sample2.txt#full,1.0,1,67.0,only,0.0,[],,,
+sample2.txt,67,ner,nltk,3.5,,False,sample2.txt#full,1.0,1,67.0,only,3.0,"[""Jane Doe"", ""John"", ""Smith""]",,,
+sample2.txt,67,sentiment,spacy,10.217999999997119,"CompileException: `nvcc` command returns non-zero exit status. 
+command: ['C:\\Program', 'Files\\NVIDIA', 'GPU', 'Computing', 'Toolkit\\CUDA\\v12.6\\bin\\nvcc.EXE', '-gencode=arch=compute_86,code=sm_86', '--ptx', '--std=c++11', '-IC:\\ProgramData\\miniconda3\\envs\\firespeaker-nlp\\lib\\site-packages\\cupy\\_core\\include', '-IC:\\ProgramData\\miniconda3\\envs\\firespeaker-nlp\\lib\\site-packages\\cupy\\_core\\include\\cupy\\_cuda\\cuda-12', '-IC:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v12.6\\include', '-ftz=true', 'C:\\Users\\TIMMOT~1\\AppData\\Local\\Temp\\tmps1xmctsl\\preprocess.cu']
+return-code: 2
+stdout/stderr: 
+",False,sample2.txt#full,1.0,1,67.0,only,0.0,,,,
+sample2.txt,67,sentiment,nltk,0.0,,False,sample2.txt#full,1.0,1,67.0,only,3.0,"[[""The food was terrible."", -0.477], [""John Smith went to London."", 0.0], [""He met Jane Doe."", 0.0]]",,,
+sample2.txt,67,dialogue_detection,spacy,0.01600000000325963,,False,sample2.txt#full,1.0,1,67.0,only,0.0,[],,,
+sample2.txt,67,dialogue_detection,nltk,0.0,,False,sample2.txt#full,1.0,1,67.0,only,0.0,[],,,
+sample2.txt,67,processing_speed,spacy,0.0,Task function processing_speed_spacy not found,False,sample2.txt#full,1.0,1,67.0,only,,,0.0,,
+sample2.txt,67,processing_speed,nltk,0.0,Task function processing_speed_nltk not found,False,sample2.txt#full,1.0,1,67.0,only,,,0.0,,
+sample1.txt,84,ner,spacy,3.610000000000582,,False,sample1.txt#full,1.0,1,84.0,only,0.0,[],,,
+sample1.txt,84,ner,nltk,3.4679999999971187,,False,sample1.txt#full,1.0,1,84.0,only,0.0,[],,,
+sample1.txt,84,sentiment,spacy,11.34400000000096,,False,sample1.txt#full,1.0,1,84.0,only,1.0,"[[""This is a great movie! I absolutely loved it. \""But the ending was so sad,\"" she said."", 0.4]]",,,
+sample1.txt,84,sentiment,nltk,0.0,,False,sample1.txt#full,1.0,1,84.0,only,3.0,"[[""This is a great movie!"", 0.659], [""I absolutely loved it."", 0.636], [""\""But the ending was so sad,\"" she said."", 0.0]]",,,
+sample1.txt,84,dialogue_detection,spacy,0.0,,False,sample1.txt#full,1.0,1,84.0,only,1.0,"[[null, ""But the ending was so sad,""]]",,,
+sample1.txt,84,dialogue_detection,nltk,0.6100000000005821,,False,sample1.txt#full,1.0,1,84.0,only,1.0,"[[null, ""But the ending was so sad,""]]",,,
+sample1.txt,84,processing_speed,spacy,0.0,Task function processing_speed_spacy not found,False,sample1.txt#full,1.0,1,84.0,only,,,0.0,,
+sample1.txt,84,processing_speed,nltk,0.0,Task function processing_speed_nltk not found,False,sample1.txt#full,1.0,1,84.0,only,,,0.0,,
+Whispers_In_Emerald_Valley.txt,18115,ner,spacy,2.9690000000045984,,True,,,2,,,0.0,,,,2.0
+Whispers_In_Emerald_Valley.txt,18115,ner,nltk,162.56299999999828,,True,,,2,,,8.0,,,,2.0
+Whispers_In_Emerald_Valley.txt,18115,sentiment,spacy,6.139999999999418,,True,,,2,,,0.0,,,,2.0
+Whispers_In_Emerald_Valley.txt,18115,sentiment,nltk,0.0779999999977008,,True,,,2,,,9.0,,,,2.0
+Whispers_In_Emerald_Valley.txt,18115,dialogue_detection,spacy,0.1260000000038417,,True,,,2,,,10.0,"[[null, ""Just a bit further,""], [null, ""Shouldn't we have reached the site by now? My GPS is showing we've gone nearly two miles past the coordinates you mentioned.""], [null, ""The electromagnetic disturbances in this valley render GPS unreliable,""], [null, ""That's why Professor Martinez provided this map. Old-fashioned, yes, but far more dependable in areas like this.""], [null, ""If you say so,""]]",,,2.0
+Whispers_In_Emerald_Valley.txt,18115,dialogue_detection,nltk,16.264999999999418,,True,,,2,,,10.0,"[[""Martinez"", ""Just a bit further,""], [null, ""The electromagnetic disturbances in this valley render GPS unreliable,""], [null, ""If you say so,""], [null, ""It's just that we're burning daylight, and you know what the locals said about being in these woods after dark.""], [null, ""ll be telling me you""]]",,,2.0
+Whispers_In_Emerald_Valley.txt,18115,processing_speed,spacy,0.0,Chunk 1: Task function processing_speed_spacy not found; Chunk 2: Task function processing_speed_spacy not found,True,,,2,,,,,0.0,18115.0,2.0
+Whispers_In_Emerald_Valley.txt,18115,processing_speed,nltk,0.0,Chunk 1: Task function processing_speed_nltk not found; Chunk 2: Task function processing_speed_nltk not found,True,,,2,,,,,0.0,18115.0,2.0

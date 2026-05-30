@@ -1,0 +1,54 @@
+# ==============================================================================
+# Firespeaker Project Dependencies
+# ==============================================================================
+# This file lists all the required Python packages for the Firespeaker core pipeline,
+# GUI server, expressive voice synthesizers (XTTS-v2 & Bark), and evaluation suites.
+#
+# Install all dependencies using:
+#     pip install -r requirements.txt
+#
+# Note: For CUDA GPU support, install the appropriate PyTorch version first, e.g.:
+#     pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Core NLP, Sentiment Analysis, and Entity Resolution
+# ------------------------------------------------------------------------------
+numpy>=1.22.4                     # Numeric operations and fallback similarity matrix calculations
+spacy>=3.8.4                      # Deterministic syntactic parsing & rule-based character fallbacks
+xcore-coref>=0.1.0                # Cross-Context Coreference Resolution (xCoRe) neural engine
+nltk>=3.8.1                       # Sentiment intensity heuristics (VADER Lexicon)
+chromadb>=0.4.0                   # Centralized Vector similarity database for Spatial Memory Palace
+
+# ------------------------------------------------------------------------------
+# Expressive Voice Synthesis (Deep Learning Models)
+# ------------------------------------------------------------------------------
+torch>=2.0.0                      # Core deep learning framework for models and GPU tensor processing
+transformers>=4.30.0              # Suno Bark generation & Wav2Vec2 audio transcript evaluation models
+coqui-tts>=0.22.0                 # Advanced XTTS-v2 zero-shot multilingual voice cloning synthesizer
+
+# ------------------------------------------------------------------------------
+# Dashboard GUI Server & Backend Orchestration
+# ------------------------------------------------------------------------------
+# (Built-in http.server, urllib, json, collections, and threading are used)
+
+# ------------------------------------------------------------------------------
+# Testing & Evaluation Suites (voice_synthesis_testing)
+# ------------------------------------------------------------------------------
+pyyaml>=6.0                       # YAML config files parser for benchmark suites
+psutil>=5.9.0                     # System resource tracking (CPU, RAM, VRAM) during pipeline runs
+librosa>=0.10.0                   # Audio feature extraction (spectrograms, pitch, alignment)
+jiwer>=3.0.0                      # Automated Word Error Rate (WER) transcription evaluation
+scipy>=1.10.0                     # Scientific audio signal computations and metrics calculations
+matplotlib>=3.7.0                 # waveform & spectrogram plotting for visualizer outputs
+pandas>=2.0.0                     # Structural dataframe manipulation for pipeline regression audits
+jinja2>=3.1.0                     # Dynamic HTML report rendering for the QA/QC dashboard
+
+# ------------------------------------------------------------------------------
+# NLP Cloud Integration & Testing Notebooks (nlp-testing)
+# ------------------------------------------------------------------------------
+python-dotenv>=1.0.0              # Local environment variable (.env) manager
+azure-ai-inference>=1.0.0         # Azure AI model catalog serverless client
+azure-core>=1.28.0                # Azure SDK core runtime dependencies
+google-genai>=0.1.0               # Google Gemini GenAI SDK client
+groq>=0.9.0                       # Groq high-throughput inference client

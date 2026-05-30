@@ -1,0 +1,54 @@
+```
+{
+    "dialogues": [
+        "My dear, do not give way to such gloomy thoughts. Let us hope for better things. Let us flatter ourselves that I may be the survivor;",
+        "May I ask whether these pleasing attentions proceed from the impulse of the moment, or are the result of previous study?"
+    ],
+    "characters": [
+        "Miss Austen",
+        "Mr. Collins",
+        "Mr. Bennet",
+        "Lady Catherine de Bourgh",
+        "Mr. Darcy",
+        "Elizabeth",
+        "Mrs. Bennet",
+        "Kitty",
+        "Lydia",
+        "Mary",
+        "Mr. Philips",
+        "Mr. Bingley",
+        "Mr. Gardiner",
+        "Mr. Lucas",
+        "Miss Darcy",
+        "Miss de Bourgh",
+        "Jane",
+        "Wickham",
+        "Henry Tilney",
+        "George Saintsbury",
+        "Diana Vernon",
+        "Argemone Lavington",
+        "Beatrix Esmond",
+        "Barbara Grant",
+        "Swift",
+        "Fielding",
+        "Thackeray",
+        "Addison",
+        "Coleridge",
+        "Scott",
+        "Mary Wollstonecraft",
+        "M. de Maupassant"
+    ],
+    "emotions": [
+        ["the pleasant shocks, the delightful thrills", 0.8],
+        ["the healthiest way in the world", 0.7],
+        ["a perfect freedom from the idea that all men may bully her if they choose", 0.9],
+        ["no mere sensibility, no nasty niceness about her", 0.6],
+        ["the lovers’ conversations in the final chapters so frigid", -0.4],
+        ["no man of taste and spirit can help doing so", 0.8],
+        ["the exigencies of the story had permitted Miss Austen to unite these personages, and thus at once achieve a notable mating and soothe poor Mrs. Bennet’s anguish", 0.5],
+        ["the general sense of the world has probably been right in preferring to the first rank his consolation to the former when she maunders over the entail", 0.6],
+        ["the shock of Elizabeth’s scornful refusal acting on a nature ex hypothesi generous", 0.7],
+        ["the change of his demeanour at the sudden meeting in the grounds of Pemberley", 0.8]
+    ]
+}
+```

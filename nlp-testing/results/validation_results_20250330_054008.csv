@@ -1,0 +1,7 @@
+sample_id,task,library,precision,recall,f1,true_positives,false_positives,false_negatives
+Whispers_In_Emerald_Valley.txt,ner,spacy,0.0,0.0,0.0,0,0,11
+Whispers_In_Emerald_Valley.txt,ner,nltk,0.0,0.0,0.0,0,0,11
+Whispers_In_Emerald_Valley.txt,sentiment,spacy,0.0,0.0,0.0,0,0,29
+Whispers_In_Emerald_Valley.txt,sentiment,nltk,0.0,0.0,0.0,0,0,29
+Whispers_In_Emerald_Valley.txt,dialogue_detection,spacy,1.0,0.0423728813559322,0.0813008130081301,5,0,113
+Whispers_In_Emerald_Valley.txt,dialogue_detection,nltk,0.8,0.03389830508474576,0.06504065040650407,4,1,114

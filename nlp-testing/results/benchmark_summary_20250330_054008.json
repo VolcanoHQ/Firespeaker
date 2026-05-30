@@ -1,0 +1,98 @@
+{
+    "run_timestamp": "20250330_054008",
+    "config": {
+        "corpus_dir": "E:\\develop\\Firespeaker\\nlp-testing\\notebooks\\..\\data\\corpus",
+        "spacy_model": "en_core_web_trf",
+        "chunk_size": 10000,
+        "overlap": 1000,
+        "max_workers": 8,
+        "sentiment_polarity_threshold": 0.1,
+        "sentiment_subjectivity_threshold": 0.3
+    },
+    "samples_processed_count": 3,
+    "total_result_entries": 24,
+    "successful_result_entries": 24,
+    "processing_error_entries": 0,
+    "performance_summary": [
+        {
+            "task": "dialogue_detection",
+            "library": "nltk",
+            "mean_time": 5.625,
+            "median_time": 0.61,
+            "std_time": 9.2196,
+            "mean_len": 6088.6667,
+            "mean_cps": 0.0,
+            "count": 3
+        },
+        {
+            "task": "dialogue_detection",
+            "library": "spacy",
+            "mean_time": 0.0473,
+            "median_time": 0.016,
+            "std_time": 0.0686,
+            "mean_len": 6088.6667,
+            "mean_cps": 0.0,
+            "count": 3
+        },
+        {
+            "task": "ner",
+            "library": "nltk",
+            "mean_time": 56.5103,
+            "median_time": 3.5,
+            "std_time": 91.8443,
+            "mean_len": 6088.6667,
+            "mean_cps": 0.0,
+            "count": 3
+        },
+        {
+            "task": "ner",
+            "library": "spacy",
+            "mean_time": 3.3963,
+            "median_time": 3.61,
+            "std_time": 0.3701,
+            "mean_len": 6088.6667,
+            "mean_cps": 0.0,
+            "count": 3
+        },
+        {
+            "task": "processing_speed",
+            "library": "nltk",
+            "mean_time": 0.0,
+            "median_time": 0.0,
+            "std_time": 0.0,
+            "mean_len": 6088.6667,
+            "mean_cps": 0.0,
+            "count": 3
+        },
+        {
+            "task": "processing_speed",
+            "library": "spacy",
+            "mean_time": 0.0,
+            "median_time": 0.0,
+            "std_time": 0.0,
+            "mean_len": 6088.6667,
+            "mean_cps": 0.0,
+            "count": 3
+        },
+        {
+            "task": "sentiment",
+            "library": "nltk",
+            "mean_time": 0.026,
+            "median_time": 0.0,
+            "std_time": 0.045,
+            "mean_len": 6088.6667,
+            "mean_cps": 0.0,
+            "count": 3
+        },
+        {
+            "task": "sentiment",
+            "library": "spacy",
+            "mean_time": 9.234,
+            "median_time": 10.218,
+            "std_time": 2.738,
+            "mean_len": 6088.6667,
+            "mean_cps": 0.0,
+            "count": 3
+        }
+    ]
+}
