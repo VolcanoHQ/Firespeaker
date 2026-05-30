@@ -1039,25 +1039,25 @@
                     <label style="display: block; margin-bottom: 12px; color: var(--text-muted);">2. Select Production Tier</label>
                     <div style="display: flex; gap: 16px; flex-direction: column;">
                         <label style="display: flex; gap: 12px; align-items: flex-start; cursor: pointer; padding: 16px; border: 1px solid var(--border-color); border-radius: var(--radius-sm);">
-                            <input type="radio" name="productionTier" value="1" checked style="margin-top: 4px;">
+                            <input type="radio" name="productionTier" value="1" checked style="margin-top: 4px;" onchange="loadBookFromDropdown()">
                             <div>
                                 <div style="font-weight: 600; font-size: 16px;">Tier 1: Solo Narrator</div>
                                 <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">A single voice actor reads the entire book (prose and dialogue).</div>
                             </div>
                         </label>
                         <label style="display: flex; gap: 12px; align-items: flex-start; cursor: pointer; padding: 16px; border: 1px solid var(--border-color); border-radius: var(--radius-sm);">
-                            <input type="radio" name="productionTier" value="2" style="margin-top: 4px;">
+                            <input type="radio" name="productionTier" value="2" style="margin-top: 4px;" onchange="loadBookFromDropdown()">
                             <div>
                                 <div style="font-weight: 600; font-size: 16px;">Tier 2: Multi-Voice Cast</div>
                                 <div style="font-weight: 500; color: var(--accent-violet); font-size: 12px; margin-top: 4px;">* Recommended for complex novels *</div>
                                 <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">Narrator reads prose; distinct actors are assigned to specific characters.</div>
                             </div>
                         </label>
-                        <label style="display: flex; gap: 12px; align-items: flex-start; cursor: pointer; padding: 16px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); opacity: 0.5;">
-                            <input type="radio" name="productionTier" value="3" disabled style="margin-top: 4px;">
+                        <label style="display: flex; gap: 12px; align-items: flex-start; cursor: pointer; padding: 16px; border: 1px solid var(--border-color); border-radius: var(--radius-sm);">
+                            <input type="radio" name="productionTier" value="3" style="margin-top: 4px;" onchange="loadBookFromDropdown()">
                             <div>
                                 <div style="font-weight: 600; font-size: 16px;">Tier 3: Audio Drama</div>
-                                <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">Full cast, ambient soundscapes, and scored music (Coming Soon).</div>
+                                <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">Full cast, ambient soundscapes, and scored music (Neural Attribution).</div>
                             </div>
                         </label>
                     </div>
@@ -1079,6 +1079,35 @@
         <!-- TAB 3: Transcript -->
         <div id="tab-transcript" class="global-tab-pane" style="flex-direction: row; height: calc(100vh - 100px);">
             <div class="sidebar">
+            
+            <!-- Author Verification Loop and Fine-Tuning Capturer -->
+            <div id="authorVerificationSection" style="display: none; margin-bottom: 20px;">
+                <div class="sidebar-title">Author Verification Loop</div>
+                <div class="glass-card" style="padding: 16px; background: rgba(255,255,255,0.015); border: 1px solid var(--border-color); border-radius: var(--radius-sm); display: flex; flex-direction: column; gap: 12px;">
+                    <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--accent-violet); font-weight: 700;">Fine-tuning Dataset Capture</div>
+                    
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; cursor: pointer; color: var(--text-main);">
+                        <input type="checkbox" id="verifyAspect_scene_splitting" onchange="toggleAspectVerification('scene_splitting')" style="accent-color: var(--accent-teal);">
+                        <span>Scene Splitting Verified</span>
+                    </label>
+                    
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; cursor: pointer; color: var(--text-main);">
+                        <input type="checkbox" id="verifyAspect_chapter_splitting" onchange="toggleAspectVerification('chapter_splitting')" style="accent-color: var(--accent-teal);">
+                        <span>Chapter Splitting Verified</span>
+                    </label>
+                    
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; cursor: pointer; color: var(--text-main);">
+                        <input type="checkbox" id="verifyAspect_character_classification" onchange="toggleAspectVerification('character_classification')" style="accent-color: var(--accent-teal);">
+                        <span>Character Roster Verified</span>
+                    </label>
+
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; cursor: pointer; color: var(--text-main);">
+                        <input type="checkbox" id="verifyAspect_narration" onchange="toggleAspectVerification('narration')" style="accent-color: var(--accent-teal);">
+                        <span>Prose/Narration Verified</span>
+                    </label>
+                </div>
+            </div>
+
             <div id="castManagementSection" style="display: none; margin-bottom: 20px;">
                 <div class="sidebar-title">Cast Management</div>
                 <button class="btn-upload" style="background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-color); box-shadow: none; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 500;" onclick="openCastManagerModal()">
@@ -1183,6 +1212,19 @@
                         <div class="card-sub" id="valQuoteStyle">Quote style: --</div>
                     </div>
                 </div>
+                
+                <!-- Persistent Speaker Duplicate and Coreference Consolidation Card -->
+                <div id="speakerMergeCard" class="glass-card" style="display: none; flex-direction: row; align-items: center; gap: 20px; margin-top: 24px; padding: 24px; border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+                    <div id="speakerMergeIcon" style="font-size: 28px; width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color);">⚡</div>
+                    <div style="flex: 1;">
+                        <h3 id="speakerMergeTitle" style="margin: 0 0 6px 0; font-size: 16px; font-weight: 700; color: var(--accent-violet);">Speaker Merge Pending</h3>
+                        <p id="speakerMergeDesc" style="margin: 0; font-size: 13.5px; color: var(--text-muted); line-height: 1.5;">...</p>
+                    </div>
+                    <div id="speakerMergeActions" style="display: flex; gap: 12px; align-items: center;">
+                        <!-- Action buttons go here -->
+                    </div>
+                </div>
+            </div>
         </div>
 
     <!-- Custom Upload Modal -->
@@ -1335,13 +1377,16 @@
             const filename = select.value;
             if (!filename) return;
 
+            const selectedTierEl = document.querySelector('input[name="productionTier"]:checked');
+            const selectedTier = selectedTierEl ? selectedTierEl.value : "1";
+
             showLoading(`Analyzing ${filename}`, "Extracting dialogue entities & chapter splits...");
             
             try {
                 const response = await fetch(`${API_BASE}/api/analyze`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ filename: filename })
+                    body: JSON.stringify({ filename: filename, tier: parseInt(selectedTier) })
                 });
                 
                 if (!response.ok) {
@@ -1363,6 +1408,7 @@
                 document.getElementById("sceneContainer").style.display = "grid";
                 document.getElementById("btnProcessManuscript").style.display = "inline-flex";
                 document.getElementById("castManagementSection").style.display = "block";
+                document.getElementById("authorVerificationSection").style.display = "block";
                 
                 // Default view Scene 1 of Chapter 1 of Part 1
                 renderTranscriptAllScenes(currentHierarchy);
@@ -1739,10 +1785,25 @@
                     </select>
                 `;
 
+                const isVerified = !!line.verified;
+                const verifyBtnStyle = isVerified ? 
+                    'background: rgba(20, 184, 166, 0.15); border: 1px solid var(--accent-teal); color: var(--accent-teal); box-shadow: 0 0 8px rgba(20, 184, 166, 0.2); font-weight: 600;' : 
+                    'background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); color: var(--text-muted); font-weight: normal;';
+                
+                const verifyBtnText = isVerified ? '✓ Verified' : '○ Verify';
+                const verifyBtnClass = isVerified ? 'btn-verify-line verified' : 'btn-verify-line';
+                
+                const verifyButton = `
+                    <button class="${verifyBtnClass}" id="verify_line_btn_${line.line_id}" onclick="toggleLineVerification('${line.line_id}', this)" style="border-radius: var(--radius-sm); padding: 4px 8px; font-size: 11px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: all 0.3s; outline: none; ${verifyBtnStyle}">
+                        ${verifyBtnText}
+                    </button>
+                `;
+
                 row.innerHTML = `
                     <div class="line-meta">
                         <div class="speaker-info" style="display: flex; align-items: center; gap: 8px;">
                             ${speakerSelector}
+                            ${verifyButton}
                             ${lockIcon}
                         </div>
                         <div style="display:flex; align-items:center; gap:12px;">
@@ -1857,6 +1918,9 @@
                 return;
             }
 
+            const selectedTierEl = document.querySelector('input[name="productionTier"]:checked');
+            const selectedTier = selectedTierEl ? selectedTierEl.value : "1";
+
             closeUploadModal();
             showLoading(`Ingesting ${filename}`, "Extracting parts, chapters, and scene scripts...");
 
@@ -1864,7 +1928,7 @@
                 const response = await fetch(`${API_BASE}/api/upload`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ filename: filename, text: text })
+                    body: JSON.stringify({ filename: filename, text: text, tier: parseInt(selectedTier) })
                 });
 
                 if (!response.ok) {
@@ -1890,6 +1954,7 @@
                 document.getElementById("sceneContainer").style.display = "grid";
                 document.getElementById("btnProcessManuscript").style.display = "inline-flex";
                 document.getElementById("castManagementSection").style.display = "block";
+                document.getElementById("authorVerificationSection").style.display = "block";
                 
                 renderTranscriptAllScenes(currentHierarchy);
                 switchGlobalTab('transcript');
@@ -1993,6 +2058,8 @@
         async function overrideLineSpeaker(lineId, selectElement) {
             const newSpeaker = selectElement.value;
             const filename = document.getElementById("bookSelect").value;
+            const selectedTierEl = document.querySelector('input[name="productionTier"]:checked');
+            const selectedTier = selectedTierEl ? selectedTierEl.value : "1";
             if (!filename) return;
 
             selectElement.disabled = true;
@@ -2005,6 +2072,7 @@
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         filename: filename,
+                        tier: parseInt(selectedTier),
                         line_id: lineId,
                         new_speaker: newSpeaker
                     })
@@ -2023,6 +2091,7 @@
                 renderDashboard(currentProfile);
                 renderTree(currentHierarchy);
                 renderSpeakerVerificationCard(currentHierarchy);
+                renderTranscriptAllScenes(currentHierarchy);
                 
                 // Keep the active scene view loaded
                 const currentActiveLeaf = document.querySelector(".scene-leaf.active");
@@ -2228,7 +2297,273 @@
         function closeMasterQcModal() {
             document.getElementById("masterQcModal").classList.remove("active");
         }
-    
+        // Verification Controls & Feedback Loop Implementation
+        function populateAspectVerifications(hierarchy) {
+            const verifiedAspects = (hierarchy && hierarchy.metadata && hierarchy.metadata.verified_aspects) || {};
+            const aspects = ["scene_splitting", "chapter_splitting", "character_classification", "narration"];
+            aspects.forEach(aspect => {
+                const checkbox = document.getElementById(`verifyAspect_${aspect}`);
+                if (checkbox) {
+                    checkbox.checked = !!verifiedAspects[aspect];
+                }
+            });
+        }
+
+        async function toggleAspectVerification(aspect) {
+            const checkbox = document.getElementById(`verifyAspect_${aspect}`);
+            const filename = document.getElementById("bookSelect").value;
+            const selectedTierEl = document.querySelector('input[name="productionTier"]:checked');
+            const selectedTier = selectedTierEl ? selectedTierEl.value : "1";
+            if (!filename) return;
+            
+            const checked = checkbox.checked;
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/verify_aspect`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        filename: filename,
+                        tier: parseInt(selectedTier),
+                        aspect: aspect,
+                        verified: checked
+                    })
+                });
+                
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || "Failed to update aspect verification status");
+                }
+                
+                const data = await response.json();
+                currentHierarchy = data.hierarchy;
+                console.log(`Aspect ${aspect} verified status successfully updated to ${checked}`);
+            } catch (err) {
+                alert(`Error: ${err.message}`);
+                checkbox.checked = !checked; // revert
+            }
+        }
+
+        async function toggleLineVerification(lineId, btn) {
+            const isVerified = btn.classList.contains("verified");
+            const newStatus = !isVerified;
+            
+            updateLineVerificationUI(lineId, btn, newStatus);
+            
+            try {
+                await verifyLineFeedback(lineId, newStatus);
+            } catch (err) {
+                alert("Failed to verify line: " + err.message);
+                updateLineVerificationUI(lineId, btn, isVerified);
+            }
+        }
+
+        function updateLineVerificationUI(lineId, btn, verifiedStatus) {
+            if (verifiedStatus) {
+                btn.classList.add("verified");
+                btn.innerHTML = `<span style="color: var(--accent-teal);">✓</span> Verified`;
+                btn.style.background = "rgba(20, 184, 166, 0.15)";
+                btn.style.borderColor = "var(--accent-teal)";
+                btn.style.color = "var(--accent-teal)";
+                btn.style.boxShadow = "0 0 8px rgba(20, 184, 166, 0.2)";
+                btn.style.fontWeight = "600";
+            } else {
+                btn.classList.remove("verified");
+                btn.innerHTML = `○ Verify`;
+                btn.style.background = "rgba(255, 255, 255, 0.02)";
+                btn.style.borderColor = "var(--border-color)";
+                btn.style.color = "var(--text-muted)";
+                btn.style.boxShadow = "none";
+                btn.style.fontWeight = "normal";
+            }
+        }
+
+        async function verifyLineFeedback(lineId, verifiedStatus) {
+            const filename = document.getElementById("bookSelect").value;
+            const selectedTierEl = document.querySelector('input[name="productionTier"]:checked');
+            const selectedTier = selectedTierEl ? selectedTierEl.value : "1";
+            if (!filename) return;
+            
+            const response = await fetch(`${API_BASE}/api/verify_line`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    filename: filename,
+                    tier: parseInt(selectedTier),
+                    line_id: lineId,
+                    verified: verifiedStatus
+                })
+            });
+            
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.error || "Failed to update verification status");
+            }
+            
+            const data = await response.json();
+            currentHierarchy = data.hierarchy;
+            
+            renderTree(currentHierarchy);
+            renderSpeakerVerificationCard(currentHierarchy);
+            
+            // Re-render full transcript to update header count of verified lines
+            const currentActiveLeaf = document.querySelector(".scene-leaf.active");
+            if (!currentActiveLeaf) {
+                renderTranscriptAllScenes(currentHierarchy);
+            }
+        }
+
+        function renderTranscriptAllScenes(hierarchy) {
+            const transcriptDiv = document.getElementById("sceneTabContentTranscript");
+            transcriptDiv.innerHTML = "";
+
+            if (!hierarchy || !hierarchy.parts || hierarchy.parts.length === 0) {
+                transcriptDiv.innerHTML = `
+                    <div class="placeholder-box">
+                        <h3>No Manuscript Content</h3>
+                        <p>Please select or upload a manuscript to view its transcript.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            populateAspectVerifications(hierarchy);
+
+            hierarchy.parts.forEach(part => {
+                part.chapters.forEach(chapter => {
+                    chapter.scenes.forEach(scene => {
+                        const sceneBox = document.createElement("div");
+                        sceneBox.className = "scene-container-box";
+                        sceneBox.id = `scene_box_${scene.scene_id}`;
+                        
+                        const totalLines = scene.lines.length;
+                        const verifiedLines = scene.lines.filter(l => l.verified).length;
+                        const isSceneFullyVerified = totalLines > 0 && verifiedLines === totalLines;
+                        
+                        const header = document.createElement("div");
+                        header.className = "scene-header";
+                        header.onclick = () => toggleSceneCollapse(scene.scene_id);
+                        header.innerHTML = `
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <span class="scene-arrow" id="arrow_${scene.scene_id}" style="transition: transform 0.2s; display: inline-block;">▼</span>
+                                <span style="font-family: var(--font-display); font-size: 15px; font-weight: 700; color: var(--text-main);">
+                                    ${chapter.chapter_title} – Scene ${scene.scene_number}
+                                </span>
+                                <span style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); color: var(--text-muted); font-size: 11px; padding: 2px 6px; border-radius: 4px;">
+                                    ${scene.metrics.total_words} words
+                                </span>
+                                ${isSceneFullyVerified ? `<span style="background: rgba(20, 184, 166, 0.15); color: var(--accent-teal); border: 1px solid var(--accent-teal); font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 600;">✓ Fully Verified</span>` : ''}
+                            </div>
+                            <div style="font-size: 12px; color: var(--text-muted); font-family: var(--font-mono);">
+                                ${verifiedLines}/${totalLines} Lines Verified
+                            </div>
+                        `;
+                        
+                        const body = document.createElement("div");
+                        body.className = "scene-body";
+                        body.id = `scene_body_${scene.scene_id}`;
+                        
+                        scene.lines.forEach(line => {
+                            const lineRow = document.createElement("div");
+                            lineRow.className = `transcript-line char-group-${line.character.replace(/\s+/g, '_')}`;
+                            lineRow.id = `line_${line.line_id}`;
+                            lineRow.style.marginBottom = "16px";
+                            
+                            let contentBox = '';
+                            if (line.segment_type === "narrative") {
+                                contentBox = `
+                                    <div class="narration-context-box" style="font-size: 14.5px; border-left: 2px solid var(--accent-violet); padding: 12px 18px; background: rgba(255,255,255,0.015); line-height: 1.6; border-radius: 4px; color: var(--text-muted); margin: 6px 0;">
+                                        ${line.dialogue}
+                                    </div>
+                                `;
+                            } else {
+                                contentBox = `
+                                    <div class="dialogue-bubble emotion-${line.emotion}">
+                                        “${line.dialogue}”
+                                    </div>
+                                `;
+                            }
+
+                            const lockIcon = line.speaker_locked ? `
+                                <span class="speaker-locked-icon" title="Speaker lock override applied" style="color: var(--accent-amber); font-size: 11px; display: inline-flex; align-items: center; gap: 4px; margin-left: 8px;">
+                                    🔒 locked
+                                </span>` : '';
+
+                            const globalChars = hierarchy.metadata.global_characters || [];
+                            const isFallback = (line.character === "char_unknown_fallback" || line.attribution_method === "char_unknown_fallback");
+                            
+                            let selectOptions = `<option value="${line.character}" selected>${isFallback ? '⚠️ Unknown Fallback' : line.character}</option>`;
+                            globalChars.forEach(char => {
+                                if (char !== line.character) {
+                                    selectOptions += `<option value="${char}">${char}</option>`;
+                                }
+                            });
+                            if (line.character !== "Narrator") {
+                                selectOptions += `<option value="Narrator">Narrator</option>`;
+                            }
+                            
+                            const badgeStyle = isFallback ? 
+                                'background: linear-gradient(135deg, #f59e0b, #d97706); border: 1px solid rgba(245,158,11,0.3); color: white;' : 
+                                'background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); color: var(--text-main);';
+                            
+                            const speakerSelector = `
+                                <select class="speaker-dropdown-inline" style="border-radius: var(--radius-sm); padding: 4px 8px; font-size: 11.5px; outline: none; margin: 0; cursor: pointer; transition: all 0.3s; ${badgeStyle}" onchange="overrideLineSpeaker('${line.line_id}', this)">
+                                    ${selectOptions}
+                                </select>
+                            `;
+
+                            const isVerified = !!line.verified;
+                            const verifyBtnStyle = isVerified ? 
+                                'background: rgba(20, 184, 166, 0.15); border: 1px solid var(--accent-teal); color: var(--accent-teal); box-shadow: 0 0 8px rgba(20, 184, 166, 0.2); font-weight: 600;' : 
+                                'background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); color: var(--text-muted); font-weight: normal;';
+                            
+                            const verifyBtnText = isVerified ? '✓ Verified' : '○ Verify';
+                            const verifyBtnClass = isVerified ? 'btn-verify-line verified' : 'btn-verify-line';
+                            
+                            const verifyButton = `
+                                <button class="${verifyBtnClass}" id="verify_line_btn_${line.line_id}" onclick="toggleLineVerification('${line.line_id}', this)" style="border-radius: var(--radius-sm); padding: 4px 8px; font-size: 11px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: all 0.3s; outline: none; ${verifyBtnStyle}">
+                                    ${verifyBtnText}
+                                </button>
+                            `;
+
+                            lineRow.innerHTML = `
+                                <div class="line-meta" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 12px; gap: 16px;">
+                                    <div class="speaker-info" style="display: flex; align-items: center; gap: 8px;">
+                                        ${speakerSelector}
+                                        ${verifyButton}
+                                        ${lockIcon}
+                                    </div>
+                                    <div style="display:flex; align-items:center; gap:12px;">
+                                        <span class="attribution-badge" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); padding: 2px 6px; border-radius: 4px; font-size: 11px; color: var(--text-muted);">${line.attribution_method}</span>
+                                        <span class="line-id-tag" style="font-family: var(--font-mono); font-size: 11px; color: var(--text-dark);">${line.line_id}</span>
+                                        <span class="emotion-indicator-dot dot-${line.emotion}" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%;" title="Emotional Mood: ${line.emotion}"></span>
+                                    </div>
+                                </div>
+                                ${contentBox}
+                            `;
+                            
+                            body.appendChild(lineRow);
+                        });
+                        
+                        sceneBox.appendChild(header);
+                        sceneBox.appendChild(body);
+                        transcriptDiv.appendChild(sceneBox);
+                    });
+                });
+            });
+        }
+
+        function toggleSceneCollapse(sceneId) {
+            const sceneBox = document.getElementById(`scene_box_${sceneId}`);
+            const arrow = document.getElementById(`arrow_${sceneId}`);
+            if (sceneBox) {
+                const isCollapsed = sceneBox.classList.toggle("scene-collapsed");
+                if (arrow) {
+                    arrow.style.transform = isCollapsed ? "rotate(-90deg)" : "rotate(0deg)";
+                }
+            }
+        }
+
         // Global Tabs
         function switchGlobalTab(tabId) {
             document.querySelectorAll('.global-tab-pane').forEach(el => el.classList.remove('active'));

@@ -162,6 +162,10 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
             self.handle_post_process_manuscript()
         elif path == "/api/override_line_speaker":
             self.handle_post_override_line_speaker()
+        elif path == "/api/verify_line":
+            self.handle_post_verify_line()
+        elif path == "/api/verify_aspect":
+            self.handle_post_verify_aspect()
         else:
             self.send_error(404, "Endpoint not found")
 
@@ -596,6 +600,7 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
             params = json.loads(post_data.decode('utf-8'))
             
             filename = params.get("filename")
+            tier = params.get("tier", 1)
             line_id = params.get("line_id")
             new_speaker = params.get("new_speaker")
             
@@ -619,38 +624,81 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
                     pitch=0.0
                 )
                 
-            # Log chapter wing dynamically if missing
-            # E.g. we fetch chapter/scene from request or parse
             cursor.execute("UPDATE rooms SET character_name = ? WHERE room_id = ?;", (new_speaker, line_id))
             palace.conn.commit()
             palace.close()
             
             logger.info(f"Line speaker override successful: Line [{line_id}] -> [{new_speaker}]")
             
-            # Invalidate parser caches to trigger complete re-profiling pass
-            cache_base = os.path.splitext(filename)[0]
-            hierarchy_cache = os.path.join("scratch", f"{cache_base}_hierarchy.json")
-            profile_cache = os.path.join("scratch", f"{cache_base}_profile.json")
+            # Direct cache update to prevent full re-parsing overlap
+            import re
+            base_name = os.path.splitext(filename)[0]
+            slug = re.sub(r'[^a-zA-Z0-9_\-]', '', base_name)
             
-            if os.path.exists(hierarchy_cache):
-                os.remove(hierarchy_cache)
-            if os.path.exists(profile_cache):
-                os.remove(profile_cache)
+            cache_dir = f"data/processed/{slug}/Tier_{tier}"
+            hierarchy_cache = os.path.join(cache_dir, "hierarchy.json")
+            profile_cache = os.path.join(cache_dir, "profile.json")
+            
+            if not os.path.exists(hierarchy_cache):
+                self.send_json_error(404, f"Hierarchy cache not found for {filename} Tier {tier}")
+                return
                 
-            # Re-run parsing
-            from src.hierarchical_parser import HierarchicalParser
-            from src.manuscript_profiler import ManuscriptProfiler
-            
-            filepath = os.path.join("data/corpus", filename)
-            parser = HierarchicalParser(use_gpu=False)
+            with open(hierarchy_cache, "r", encoding="utf-8") as f:
+                hierarchy_data = json.load(f)
+                
+            # Update line in cache
+            target_line = None
+            found = False
+            for part in hierarchy_data.get("parts", []):
+                for chapter in part.get("chapters", []):
+                    for scene in chapter.get("scenes", []):
+                        for line in scene.get("lines", []):
+                            if line.get("line_id") == line_id:
+                                line["character"] = new_speaker
+                                line["speaker_locked"] = True
+                                target_line = line
+                                found = True
+                                break
+                        if found:
+                            break
+                    if found:
+                        break
+                if found:
+                    break
+                    
+            if not found:
+                self.send_json_error(404, f"Line ID {line_id} not found in hierarchy")
+                return
+                
+            # Add to global characters roster if not already present
+            if new_speaker not in hierarchy_data["metadata"]["global_characters"]:
+                hierarchy_data["metadata"]["global_characters"].append(new_speaker)
+                
+            # Save updated cache
+            with open(hierarchy_cache, "w", encoding="utf-8") as f:
+                json.dump(hierarchy_data, f, indent=4)
+                
+            # If the line was verified, update centralized training dataset too!
+            if target_line.get("verified"):
+                feedback_file = "data/feedback_dataset.json"
+                feedback_data = []
+                if os.path.exists(feedback_file):
+                    try:
+                        with open(feedback_file, "r", encoding="utf-8") as f:
+                            feedback_data = json.load(f)
+                    except Exception:
+                        pass
+                for item in feedback_data:
+                    if item.get("line_id") == line_id:
+                        item["character"] = new_speaker
+                        break
+                with open(feedback_file, "w", encoding="utf-8") as f:
+                    json.dump(feedback_data, f, indent=4)
+                    
+            # Re-profile with ManuscriptProfiler using the updated hierarchy structure to keep metrics accurate
             profiler = ManuscriptProfiler(use_gpu=False)
-            
-            hierarchy_data = parser.parse_hierarchy(filepath)
-            profile_data = profiler.profile_book(filepath)
-            
-            # Cache results
-            os.makedirs("scratch", exist_ok=True)
-            parser.save_index(hierarchy_data, hierarchy_cache)
+            filepath = os.path.join("data/corpus", filename)
+            profile_data = profiler.profile_book(filepath, hierarchy_data=hierarchy_data)
             profiler.save_profile(profile_data, profile_cache)
             
             response_data = {
@@ -667,6 +715,246 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
             self.wfile.write(response)
         except Exception as e:
             logger.error(f"Error overriding line speaker: {e}", exc_info=True)
+            self.send_json_error(500, str(e))
+
+    def handle_post_verify_line(self):
+        try:
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            params = json.loads(post_data.decode('utf-8'))
+            
+            filename = params.get("filename")
+            tier = params.get("tier", 1)
+            line_id = params.get("line_id")
+            verified = params.get("verified", False)
+            
+            if not filename or not line_id:
+                self.send_json_error(400, "Missing required parameters: filename, line_id")
+                return
+                
+            import re
+            base_name = os.path.splitext(filename)[0]
+            slug = re.sub(r'[^a-zA-Z0-9_\-]', '', base_name)
+            
+            cache_dir = f"data/processed/{slug}/Tier_{tier}"
+            hierarchy_cache = os.path.join(cache_dir, "hierarchy.json")
+            
+            if not os.path.exists(hierarchy_cache):
+                self.send_json_error(404, f"Hierarchy cache not found for {filename} Tier {tier}")
+                return
+                
+            # Load cache
+            with open(hierarchy_cache, "r", encoding="utf-8") as f:
+                hierarchy_data = json.load(f)
+                
+            # Find and update line
+            target_line = None
+            found = False
+            for part in hierarchy_data.get("parts", []):
+                for chapter in part.get("chapters", []):
+                    for scene in chapter.get("scenes", []):
+                        for line in scene.get("lines", []):
+                            if line.get("line_id") == line_id:
+                                line["verified"] = verified
+                                line["speaker_locked"] = verified # Lock speaker if verified
+                                target_line = line
+                                found = True
+                                break
+                        if found:
+                            break
+                    if found:
+                        break
+                if found:
+                    break
+                    
+            if not found:
+                self.send_json_error(404, f"Line ID {line_id} not found in hierarchy")
+                return
+                
+            # Save updated cache
+            with open(hierarchy_cache, "w", encoding="utf-8") as f:
+                json.dump(hierarchy_data, f, indent=4)
+                
+            # Central training feedback file update
+            feedback_file = "data/feedback_dataset.json"
+            feedback_data = []
+            if os.path.exists(feedback_file):
+                try:
+                    with open(feedback_file, "r", encoding="utf-8") as f:
+                        feedback_data = json.load(f)
+                except Exception:
+                    feedback_data = []
+                    
+            # Check if line already exists in feedback dataset
+            existing_idx = -1
+            for idx, item in enumerate(feedback_data):
+                if item.get("line_id") == line_id:
+                    existing_idx = idx
+                    break
+                    
+            if verified:
+                payload = {
+                    "line_id": line_id,
+                    "filename": filename,
+                    "tier": tier,
+                    "character": target_line.get("character"),
+                    "text": target_line.get("text"),
+                    "dialogue": target_line.get("dialogue"),
+                    "narration_before": target_line.get("narration_before", ""),
+                    "narration_after": target_line.get("narration_after", ""),
+                    "emotion": target_line.get("emotion"),
+                    "attribution_method": target_line.get("attribution_method")
+                }
+                if existing_idx >= 0:
+                    feedback_data[existing_idx] = payload
+                else:
+                    feedback_data.append(payload)
+            else:
+                if existing_idx >= 0:
+                    feedback_data.pop(existing_idx)
+                    
+            # Save centralized feedback file
+            os.makedirs("data", exist_ok=True)
+            with open(feedback_file, "w", encoding="utf-8") as f:
+                json.dump(feedback_data, f, indent=4)
+                
+            # Return updated hierarchy
+            response_data = {
+                "hierarchy": hierarchy_data
+            }
+            response = json.dumps(response_data).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(response)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(response)
+            
+        except Exception as e:
+            logger.error(f"Error verifying line speaker: {e}", exc_info=True)
+            self.send_json_error(500, str(e))
+
+    def handle_post_verify_aspect(self):
+        try:
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            params = json.loads(post_data.decode('utf-8'))
+            
+            filename = params.get("filename")
+            tier = params.get("tier", 1)
+            aspect = params.get("aspect")
+            verified = params.get("verified", False)
+            
+            if not filename or not aspect:
+                self.send_json_error(400, "Missing required parameters: filename, aspect")
+                return
+                
+            import re
+            base_name = os.path.splitext(filename)[0]
+            slug = re.sub(r'[^a-zA-Z0-9_\-]', '', base_name)
+            
+            cache_dir = f"data/processed/{slug}/Tier_{tier}"
+            hierarchy_cache = os.path.join(cache_dir, "hierarchy.json")
+            
+            if not os.path.exists(hierarchy_cache):
+                self.send_json_error(404, f"Hierarchy cache not found for {filename} Tier {tier}")
+                return
+                
+            # Load cache
+            with open(hierarchy_cache, "r", encoding="utf-8") as f:
+                hierarchy_data = json.load(f)
+                
+            if "verified_aspects" not in hierarchy_data["metadata"]:
+                hierarchy_data["metadata"]["verified_aspects"] = {}
+                
+            hierarchy_data["metadata"]["verified_aspects"][aspect] = verified
+            
+            # Save updated cache
+            with open(hierarchy_cache, "w", encoding="utf-8") as f:
+                json.dump(hierarchy_data, f, indent=4)
+                
+            # Central training feedback file update
+            feedback_file = "data/feedback_dataset.json"
+            feedback_data = []
+            if os.path.exists(feedback_file):
+                try:
+                    with open(feedback_file, "r", encoding="utf-8") as f:
+                        feedback_data = json.load(f)
+                except Exception:
+                    feedback_data = []
+                    
+            # Check if this aspect verification already exists in feedback dataset
+            existing_idx = -1
+            for idx, item in enumerate(feedback_data):
+                if item.get("type") == "aspect_verification" and item.get("filename") == filename and item.get("tier") == tier and item.get("aspect") == aspect:
+                    existing_idx = idx
+                    break
+                    
+            if verified:
+                # Capture structural parameters for training
+                aspect_details = {
+                    "type": "aspect_verification",
+                    "filename": filename,
+                    "tier": tier,
+                    "aspect": aspect,
+                    "verified": True,
+                    "metadata": {
+                        "total_chapters": hierarchy_data["metadata"].get("total_chapters"),
+                        "total_scenes": hierarchy_data["metadata"].get("total_scenes"),
+                        "global_characters": hierarchy_data["metadata"].get("global_characters")
+                    }
+                }
+                
+                # Add context details based on the aspect being verified
+                if aspect == "scene_splitting":
+                    scenes_structure = []
+                    for part in hierarchy_data.get("parts", []):
+                        for chapter in part.get("chapters", []):
+                            for scene in chapter.get("scenes", []):
+                                scenes_structure.append({
+                                    "scene_id": scene.get("scene_id"),
+                                    "scene_number": scene.get("scene_number"),
+                                    "first_line": scene.get("lines")[0].get("text") if scene.get("lines") else ""
+                                })
+                    aspect_details["scenes_structure"] = scenes_structure
+                elif aspect == "chapter_splitting":
+                    chapters_structure = []
+                    for part in hierarchy_data.get("parts", []):
+                        for chapter in part.get("chapters", []):
+                            chapters_structure.append({
+                                "chapter_id": chapter.get("chapter_id"),
+                                "chapter_title": chapter.get("chapter_title"),
+                                "total_scenes": chapter.get("total_scenes")
+                            })
+                    aspect_details["chapters_structure"] = chapters_structure
+                elif aspect == "character_classification":
+                    aspect_details["characters"] = hierarchy_data["metadata"].get("global_characters", [])
+                    
+                if existing_idx >= 0:
+                    feedback_data[existing_idx] = aspect_details
+                else:
+                    feedback_data.append(aspect_details)
+            else:
+                if existing_idx >= 0:
+                    feedback_data.pop(existing_idx)
+                    
+            # Save centralized feedback file
+            with open(feedback_file, "w", encoding="utf-8") as f:
+                json.dump(feedback_data, f, indent=4)
+                
+            response_data = {
+                "hierarchy": hierarchy_data
+            }
+            response = json.dumps(response_data).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(response)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(response)
+            
+        except Exception as e:
+            logger.error(f"Error verifying aspect: {e}", exc_info=True)
             self.send_json_error(500, str(e))
 
     def send_json_error(self, code, message):
