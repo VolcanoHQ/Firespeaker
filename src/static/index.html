@@ -1027,11 +1027,16 @@
                 
                 <div>
                     <label style="display: block; margin-bottom: 8px; color: var(--text-muted);">1. Select or Upload Manuscript</label>
-                    <div style="display: flex; gap: 12px;">
+                    <div style="display: flex; gap: 12px; align-items: center;">
                         <select id="bookSelect" style="flex: 1;" onchange="loadBookFromDropdown()">
                             <option value="" disabled selected>Select a Manuscript...</option>
                         </select>
-                        <button class="btn-upload" onclick="openUploadModal()">Upload File</button>
+                        <button class="btn-upload" onclick="document.getElementById('directFileInput').click()">Upload File</button>
+                        <input type="file" id="directFileInput" accept=".txt" style="display: none;" onchange="handleDirectFileSelect(this)">
+                    </div>
+                    <div style="margin-top: 6px; font-size: 12px; text-align: right;">
+                        <span style="color: var(--text-muted);">or </span>
+                        <a href="javascript:void(0)" onclick="openUploadModal()" style="color: var(--accent-teal); text-decoration: none; font-weight: 500; transition: color 0.2s;" onmouseover="this.style.color='var(--accent-violet)'" onmouseout="this.style.color='var(--accent-teal)'">paste manual text</a>
                     </div>
                 </div>
 
@@ -1064,7 +1069,8 @@
                 </div>
 
                 <button id="btnProcessManuscript" class="btn-upload" style="background: linear-gradient(135deg, var(--accent-teal), #0d9488); justify-content: center; margin-top: 16px; padding: 16px; font-size: 16px;" onclick="triggerProcessManuscript()">
-                    Start Processing
+                    <span id="processIcon" style="margin-right: 8px;">⚡</span>
+                    <span id="processText">Start Processing</span>
                 </button>
             </div>
         </div>
@@ -1497,7 +1503,8 @@
             const desc = document.getElementById("speakerMergeDesc");
             const actions = document.getElementById("speakerMergeActions");
             
-            const filename = document.getElementById("bookSelect").value;
+            if (!card) return;
+            
             const decisions = (hierarchy && hierarchy.metadata && hierarchy.metadata.merge_decisions) || [];
             
             if (decisions.length === 0) {
@@ -1505,16 +1512,25 @@
                 card.style.display = "flex";
                 card.style.background = "rgba(20, 184, 166, 0.02)";
                 card.style.borderColor = "var(--border-color)";
-                icon.textContent = "✓";
-                icon.style.color = "var(--accent-teal)";
-                title.textContent = "Speaker Roster Verified";
-                title.style.color = "var(--accent-teal)";
-                desc.textContent = "All character names are verified and consolidated. Speaker attribution is operating at 100% confidence.";
-                actions.innerHTML = `
-                    <span style="font-family: var(--font-mono); font-size: 11.5px; color: var(--text-dark); background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); padding: 6px 12px; border-radius: var(--radius-sm);">
-                        Total Speakers: ${hierarchy.metadata.global_characters.length}
-                    </span>
-                `;
+                if (icon) {
+                    icon.textContent = "✓";
+                    icon.style.color = "var(--accent-teal)";
+                }
+                if (title) {
+                    title.textContent = "Speaker Roster Verified";
+                    title.style.color = "var(--accent-teal)";
+                }
+                if (desc) {
+                    desc.textContent = "All character names are verified and consolidated. Speaker attribution is operating at 100% confidence.";
+                }
+                if (actions) {
+                    const totalChars = (hierarchy && hierarchy.metadata && hierarchy.metadata.global_characters && hierarchy.metadata.global_characters.length) || 0;
+                    actions.innerHTML = `
+                        <span style="font-family: var(--font-mono); font-size: 11.5px; color: var(--text-dark); background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); padding: 6px 12px; border-radius: var(--radius-sm);">
+                            Total Speakers: ${totalChars}
+                        </span>
+                    `;
+                }
                 return;
             }
             
@@ -1524,15 +1540,23 @@
                 card.style.display = "flex";
                 card.style.background = "rgba(139, 92, 246, 0.035)";
                 card.style.borderColor = "var(--accent-violet-glow)";
-                icon.textContent = "⚡";
-                icon.style.color = "var(--accent-violet)";
-                title.textContent = "Potential Speaker Duplicate Detected";
-                title.style.color = "var(--accent-violet)";
-                desc.innerHTML = `System detected duplicate <strong>'${pending.original_name}'</strong> and merged into canonical <strong>'${pending.canonical_name}'</strong> (Confidence: <strong>${Math.round(pending.confidence_score * 100)}%</strong>). Is this correct?`;
-                actions.innerHTML = `
-                    <button class="btn-upload" style="background: var(--accent-teal); box-shadow: 0 0 10px var(--accent-teal-glow); font-size: 12px; padding: 8px 16px; border:none;" onclick="confirmCharacterMerge('${pending.original_name}', '${pending.canonical_name}', true)">Confirm Merge</button>
-                    <button class="btn-upload" style="background: rgba(244, 63, 94, 0.2); border: 1px solid var(--accent-rose); box-shadow: none; font-size: 12px; padding: 8px 16px; color: var(--accent-rose);" onclick="confirmCharacterMerge('${pending.original_name}', '${pending.canonical_name}', false)">Keep Separate</button>
-                `;
+                if (icon) {
+                    icon.textContent = "⚡";
+                    icon.style.color = "var(--accent-violet)";
+                }
+                if (title) {
+                    title.textContent = "Potential Speaker Duplicate Detected";
+                    title.style.color = "var(--accent-violet)";
+                }
+                if (desc) {
+                    desc.innerHTML = `System detected duplicate <strong>'${pending.original_name}'</strong> and merged into canonical <strong>'${pending.canonical_name}'</strong> (Confidence: <strong>${Math.round(pending.confidence_score * 100)}%</strong>). Is this correct?`;
+                }
+                if (actions) {
+                    actions.innerHTML = `
+                        <button class="btn-upload" style="background: var(--accent-teal); box-shadow: 0 0 10px var(--accent-teal-glow); font-size: 12px; padding: 8px 16px; border:none;" onclick="confirmCharacterMerge('${pending.original_name}', '${pending.canonical_name}', true)">Confirm Merge</button>
+                        <button class="btn-upload" style="background: rgba(244, 63, 94, 0.2); border: 1px solid var(--accent-rose); box-shadow: none; font-size: 12px; padding: 8px 16px; color: var(--accent-rose);" onclick="confirmCharacterMerge('${pending.original_name}', '${pending.canonical_name}', false)">Keep Separate</button>
+                    `;
+                }
                 return;
             }
             
@@ -1541,26 +1565,42 @@
                 card.style.display = "flex";
                 card.style.background = "rgba(20, 184, 166, 0.035)";
                 card.style.borderColor = "var(--accent-teal-glow)";
-                icon.textContent = "✓";
-                icon.style.color = "var(--accent-teal)";
-                title.textContent = "Consolidation Override Active";
-                title.style.color = "var(--accent-teal)";
-                desc.innerHTML = `You confirmed merging <strong>'${firstDecision.original_name}'</strong> into <strong>'${firstDecision.canonical_name}'</strong> (Override score: <strong>1.00</strong>).`;
-                actions.innerHTML = `
-                    <button class="btn-upload" style="background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); box-shadow: none; font-size: 12px; padding: 8px 16px;" onclick="confirmCharacterMerge('${firstDecision.original_name}', '${firstDecision.canonical_name}', false)">Undo / Split</button>
-                `;
+                if (icon) {
+                    icon.textContent = "✓";
+                    icon.style.color = "var(--accent-teal)";
+                }
+                if (title) {
+                    title.textContent = "Consolidation Override Active";
+                    title.style.color = "var(--accent-teal)";
+                }
+                if (desc) {
+                    desc.innerHTML = `You confirmed merging <strong>'${firstDecision.original_name}'</strong> into <strong>'${firstDecision.canonical_name}'</strong> (Override score: <strong>1.00</strong>).`;
+                }
+                if (actions) {
+                    actions.innerHTML = `
+                        <button class="btn-upload" style="background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); box-shadow: none; font-size: 12px; padding: 8px 16px;" onclick="confirmCharacterMerge('${firstDecision.original_name}', '${firstDecision.canonical_name}', false)">Undo / Split</button>
+                    `;
+                }
             } else {
                 card.style.display = "flex";
                 card.style.background = "rgba(244, 63, 94, 0.035)";
                 card.style.borderColor = "var(--accent-rose-glow)";
-                icon.textContent = "✗";
-                icon.style.color = "var(--accent-rose)";
-                title.textContent = "Speaker Split Override Active";
-                title.style.color = "var(--accent-rose)";
-                desc.innerHTML = `You split <strong>'${firstDecision.original_name}'</strong> from <strong>'${firstDecision.canonical_name}'</strong>. Speakers are kept separate.`;
-                actions.innerHTML = `
-                    <button class="btn-upload" style="background: var(--accent-violet); box-shadow: 0 0 10px var(--accent-violet-glow); font-size: 12px; padding: 8px 16px; border:none;" onclick="confirmCharacterMerge('${firstDecision.original_name}', '${firstDecision.canonical_name}', true)">Consolidate / Merge</button>
-                `;
+                if (icon) {
+                    icon.textContent = "✗";
+                    icon.style.color = "var(--accent-rose)";
+                }
+                if (title) {
+                    title.textContent = "Speaker Split Override Active";
+                    title.style.color = "var(--accent-rose)";
+                }
+                if (desc) {
+                    desc.innerHTML = `You split <strong>'${firstDecision.original_name}'</strong> from <strong>'${firstDecision.canonical_name}'</strong>. Speakers are kept separate.`;
+                }
+                if (actions) {
+                    actions.innerHTML = `
+                        <button class="btn-upload" style="background: var(--accent-violet); box-shadow: 0 0 10px var(--accent-violet-glow); font-size: 12px; padding: 8px 16px; border:none;" onclick="confirmCharacterMerge('${firstDecision.original_name}', '${firstDecision.canonical_name}', true)">Consolidate / Merge</button>
+                    `;
+                }
             }
         }
         
@@ -1617,53 +1657,81 @@
 
         // Render high-level summary overview
         function renderDashboard(profile) {
-            document.getElementById("valDuration").textContent = `${profile.file_metadata.estimated_spoken_duration_min}m`;
-            document.getElementById("valTier").textContent = profile.file_metadata.processing_tier;
-            document.getElementById("valWords").textContent = Number(profile.file_metadata.word_count).toLocaleString();
-            document.getElementById("valChars").textContent = `${Number(profile.file_metadata.char_count).toLocaleString()} chars`;
-            document.getElementById("valChapters").textContent = `${profile.structure_metadata.total_chapters} Chapters`;
-            document.getElementById("valParagraphs").textContent = `${profile.structure_metadata.total_paragraphs} paragraphs`;
-            document.getElementById("valLines").textContent = profile.structure_metadata.total_dialogue_lines_extracted;
+            if (!profile) return;
+            
+            const elements = {
+                valDuration: `${profile.file_metadata.estimated_spoken_duration_min}m`,
+                valTier: profile.file_metadata.processing_tier,
+                valWords: Number(profile.file_metadata.word_count).toLocaleString(),
+                valChars: `${Number(profile.file_metadata.char_count).toLocaleString()} chars`,
+                valChapters: `${profile.structure_metadata.total_chapters} Chapters`,
+                valParagraphs: `${profile.structure_metadata.total_paragraphs} paragraphs`,
+                valLines: profile.structure_metadata.total_dialogue_lines_extracted
+            };
+            
+            for (const [id, value] of Object.entries(elements)) {
+                const el = document.getElementById(id);
+                if (el) el.textContent = value;
+            }
             
             const quoteStyle = profile.file_metadata.quote_style_detected || profile.structure_metadata.quote_style_detected || "double";
             const pov = profile.file_metadata.narration_pov || "Third-Person";
-            document.getElementById("valQuoteStyle").textContent = `Quotes: ${quoteStyle} | POV: ${pov}`;
+            const valQuoteStyle = document.getElementById("valQuoteStyle");
+            if (valQuoteStyle) {
+                valQuoteStyle.textContent = `Quotes: ${quoteStyle} | POV: ${pov}`;
+            }
 
             // Ratios
             const narrPercent = profile.structure_metadata.narration_word_ratio_percent;
             const dialPercent = profile.structure_metadata.dialogue_word_ratio_percent;
-            document.getElementById("gaugeNarration").style.width = `${narrPercent}%`;
-            document.getElementById("gaugeDialogue").style.width = `${dialPercent}%`;
-            document.getElementById("dialogueRatioLabel").textContent = `${narrPercent}% / ${dialPercent}%`;
+            
+            const gaugeNarration = document.getElementById("gaugeNarration");
+            if (gaugeNarration) gaugeNarration.style.width = `${narrPercent}%`;
+            
+            const gaugeDialogue = document.getElementById("gaugeDialogue");
+            if (gaugeDialogue) gaugeDialogue.style.width = `${dialPercent}%`;
+            
+            const dialogueRatioLabel = document.getElementById("dialogueRatioLabel");
+            if (dialogueRatioLabel) dialogueRatioLabel.textContent = `${narrPercent}% / ${dialPercent}%`;
 
             // Character Share List
             const breakdownList = document.getElementById("charBreakdownList");
-            breakdownList.innerHTML = "";
-            
-            // Sort characters by word count share descending
-            const characters = Object.entries(profile.character_dialogue_breakdown);
-            characters.sort((a, b) => b[1].spoken_words - a[1].spoken_words);
+            if (breakdownList) {
+                breakdownList.innerHTML = "";
+                
+                // Sort characters by word count share descending
+                const characters = Object.entries(profile.character_dialogue_breakdown || {});
+                characters.sort((a, b) => b[1].spoken_words - a[1].spoken_words);
 
-            characters.forEach(([name, metrics]) => {
-                const row = document.createElement("div");
-                row.className = "char-share-row";
-                row.innerHTML = `
-                    <div class="char-share-meta">
-                        <span class="char-name">${name}</span>
-                        <span class="char-percent">${metrics.word_share_percent}% <span style="font-size:10px; color:var(--text-dark);">(${Number(metrics.spoken_words).toLocaleString()} words)</span></span>
-                    </div>
-                    <div class="char-progress-track">
-                        <div class="char-progress-bar" style="width: ${metrics.word_share_percent}%"></div>
-                    </div>
-                `;
-                breakdownList.appendChild(row);
-            });
+                characters.forEach(([name, metrics]) => {
+                    const row = document.createElement("div");
+                    row.className = "char-share-row";
+                    row.innerHTML = `
+                        <div class="char-share-meta">
+                            <span class="char-name">${name}</span>
+                            <span class="char-percent">${metrics.word_share_percent}% <span style="font-size:10px; color:var(--text-dark);">(${Number(metrics.spoken_words).toLocaleString()} words)</span></span>
+                        </div>
+                        <div class="char-progress-track">
+                            <div class="char-progress-bar" style="width: ${metrics.word_share_percent}%"></div>
+                        </div>
+                    `;
+                    breakdownList.appendChild(row);
+                });
+            }
 
             // Sentiment bar charts
-            document.getElementById("barJoy").style.height = `${profile.emotional_breakdown.Joy || 0}%`;
-            document.getElementById("barSadness").style.height = `${profile.emotional_breakdown.Sadness || 0}%`;
-            document.getElementById("barTension").style.height = `${profile.emotional_breakdown.Tension || 0}%`;
-            document.getElementById("barNeutral").style.height = `${profile.emotional_breakdown.Neutral || 0}%`;
+            const emo = profile.emotional_breakdown || {};
+            const barJoy = document.getElementById("barJoy");
+            if (barJoy) barJoy.style.height = `${emo.Joy || 0}%`;
+            
+            const barSadness = document.getElementById("barSadness");
+            if (barSadness) barSadness.style.height = `${emo.Sadness || 0}%`;
+            
+            const barTension = document.getElementById("barTension");
+            if (barTension) barTension.style.height = `${emo.Tension || 0}%`;
+            
+            const barNeutral = document.getElementById("barNeutral");
+            if (barNeutral) barNeutral.style.height = `${emo.Neutral || 0}%`;
         }
 
         // Render Collapsible tree explorer
@@ -1980,6 +2048,80 @@
             reader.readAsText(file);
         }
 
+        async function handleDirectFileSelect(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const selectedTierEl = document.querySelector('input[name="productionTier"]:checked');
+            const selectedTier = selectedTierEl ? selectedTierEl.value : "1";
+
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                const contents = e.target.result;
+                const filename = file.name;
+
+                showLoading(`Ingesting ${filename}`, "Extracting parts, chapters, and scene scripts...");
+
+                try {
+                    const response = await fetch(`${API_BASE}/api/upload`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ filename: filename, text: contents, tier: parseInt(selectedTier) })
+                    });
+
+                    if (!response.ok) {
+                        const err = await response.json();
+                        throw new Error(err.error || "Upload analysis failed");
+                    }
+
+                    const data = await response.json();
+                    currentProfile = data.profile;
+                    currentHierarchy = data.hierarchy;
+                    
+                    renderDashboard(currentProfile);
+                    renderTree(currentHierarchy);
+                    renderSpeakerVerificationCard(currentHierarchy);
+                    
+                    // Refresh book select in header
+                    await fetchBooks();
+                    
+                    const select = document.getElementById("bookSelect");
+                    if (select) {
+                        select.value = filename.endsWith(".txt") ? filename : `${filename}.txt`;
+                    }
+                    
+                    // Transition views
+                    const workspacePlaceholder = document.getElementById("workspacePlaceholder");
+                    if (workspacePlaceholder) workspacePlaceholder.style.display = "none";
+                    
+                    const overviewPanel = document.getElementById("overviewPanel");
+                    if (overviewPanel) overviewPanel.style.display = "flex";
+                    
+                    const sceneContainer = document.getElementById("sceneContainer");
+                    if (sceneContainer) sceneContainer.style.display = "grid";
+                    
+                    const btnProcessManuscript = document.getElementById("btnProcessManuscript");
+                    if (btnProcessManuscript) btnProcessManuscript.style.display = "inline-flex";
+                    
+                    const castManagementSection = document.getElementById("castManagementSection");
+                    if (castManagementSection) castManagementSection.style.display = "block";
+                    
+                    const authorVerificationSection = document.getElementById("authorVerificationSection");
+                    if (authorVerificationSection) authorVerificationSection.style.display = "block";
+                    
+                    renderTranscriptAllScenes(currentHierarchy);
+                    switchGlobalTab('transcript');
+
+                } catch (err) {
+                    alert(`Error: ${err.message}`);
+                } finally {
+                    hideLoading();
+                    input.value = ""; // reset
+                }
+            };
+            reader.readAsText(file);
+        }
+
         // Submit custom book upload via API
         async function submitCustomUpload() {
             const filename = document.getElementById("uploadTitle").value.trim();
@@ -2278,9 +2420,9 @@
             const icon = document.getElementById("processIcon");
             const text = document.getElementById("processText");
             
-            btn.disabled = true;
-            icon.style.animation = "spin 1.2s linear infinite";
-            text.textContent = "Processing...";
+            if (btn) btn.disabled = true;
+            if (icon) icon.style.animation = "spin 1.2s linear infinite";
+            if (text) text.textContent = "Processing...";
             
             try {
                 const response = await fetch(`${API_BASE}/api/process_manuscript`, {
@@ -2295,18 +2437,25 @@
                 }
                 
                 // Open dynamic compilation progress overlay
-                document.getElementById("compilationOverlay").classList.add("active");
-                document.getElementById("compilationProgressBar").style.width = "0%";
-                document.getElementById("compilationProgressPercentage").textContent = "0%";
-                document.getElementById("compilationSubtitle").textContent = "Initializing synthesis compiler...";
+                const compilationOverlay = document.getElementById("compilationOverlay");
+                if (compilationOverlay) compilationOverlay.classList.add("active");
+                
+                const compilationProgressBar = document.getElementById("compilationProgressBar");
+                if (compilationProgressBar) compilationProgressBar.style.width = "0%";
+                
+                const compilationProgressPercentage = document.getElementById("compilationProgressPercentage");
+                if (compilationProgressPercentage) compilationProgressPercentage.textContent = "0%";
+                
+                const compilationSubtitle = document.getElementById("compilationSubtitle");
+                if (compilationSubtitle) compilationSubtitle.textContent = "Initializing synthesis compiler...";
                 
                 compilationInterval = setInterval(pollCompilationStatus, 1000);
                 
             } catch (err) {
                 alert(`Error: ${err.message}`);
-                btn.disabled = false;
-                icon.style.animation = "none";
-                text.textContent = "Process Manuscript";
+                if (btn) btn.disabled = false;
+                if (icon) icon.style.animation = "none";
+                if (text) text.textContent = "Process Manuscript";
             }
         }
         
@@ -2318,53 +2467,74 @@
                 const percent = data.progress || 0;
                 const step = data.step || "Processing track components...";
                 
-                document.getElementById("compilationProgressBar").style.width = `${percent}%`;
-                document.getElementById("compilationProgressPercentage").textContent = `${percent}%`;
-                document.getElementById("compilationSubtitle").textContent = step;
+                const compilationProgressBar = document.getElementById("compilationProgressBar");
+                if (compilationProgressBar) compilationProgressBar.style.width = `${percent}%`;
+                
+                const compilationProgressPercentage = document.getElementById("compilationProgressPercentage");
+                if (compilationProgressPercentage) compilationProgressPercentage.textContent = `${percent}%`;
+                
+                const compilationSubtitle = document.getElementById("compilationSubtitle");
+                if (compilationSubtitle) compilationSubtitle.textContent = step;
                 
                 if (data.status === "completed") {
                     clearInterval(compilationInterval);
-                    document.getElementById("compilationOverlay").classList.remove("active");
+                    
+                    const compilationOverlay = document.getElementById("compilationOverlay");
+                    if (compilationOverlay) compilationOverlay.classList.remove("active");
                     
                     // Reset header button state
                     const btn = document.getElementById("btnProcessManuscript");
                     const icon = document.getElementById("processIcon");
                     const text = document.getElementById("processText");
-                    btn.disabled = false;
-                    icon.style.animation = "none";
-                    text.textContent = "Process Manuscript";
+                    if (btn) btn.disabled = false;
+                    if (icon) icon.style.animation = "none";
+                    if (text) text.textContent = "Process Manuscript";
                     
                     // Show Celebrated ACX QC report details
                     const qc = data.qc_report || {};
                     const metrics = qc.metrics || {};
                     const val = qc.validation || {};
                     
-                    document.getElementById("qcPeakVal").textContent = `${metrics.physical_peak_amplitude_dbfs || -3.00} dBFS`;
-                    document.getElementById("qcRmsVal").textContent = `${metrics.root_mean_square_rms_dbfs || -21.50} dBFS`;
-                    document.getElementById("qcSampleRateVal").textContent = `${Number(metrics.sample_rate_hz || 22050).toLocaleString()} Hz`;
-                    document.getElementById("qcBitDepthVal").textContent = `${metrics.bit_depth || 16}-bit / ${metrics.channels === 1 ? 'Mono' : 'Stereo'}`;
+                    const qcPeakVal = document.getElementById("qcPeakVal");
+                    if (qcPeakVal) qcPeakVal.textContent = `${metrics.physical_peak_amplitude_dbfs || -3.00} dBFS`;
+                    
+                    const qcRmsVal = document.getElementById("qcRmsVal");
+                    if (qcRmsVal) qcRmsVal.textContent = `${metrics.root_mean_square_rms_dbfs || -21.50} dBFS`;
+                    
+                    const qcSampleRateVal = document.getElementById("qcSampleRateVal");
+                    if (qcSampleRateVal) qcSampleRateVal.textContent = `${Number(metrics.sample_rate_hz || 22050).toLocaleString()} Hz`;
+                    
+                    const qcBitDepthVal = document.getElementById("qcBitDepthVal");
+                    if (qcBitDepthVal) qcBitDepthVal.textContent = `${metrics.bit_depth || 16}-bit / ${metrics.channels === 1 ? 'Mono' : 'Stereo'}`;
                     
                     const peakCheck = document.getElementById("qcPeakCheckVal");
-                    peakCheck.textContent = val.peak_check || "PASSED";
-                    peakCheck.style.color = (val.peak_check === "PASSED" ? "var(--accent-teal)" : "var(--accent-rose)");
+                    if (peakCheck) {
+                        peakCheck.textContent = val.peak_check || "PASSED";
+                        peakCheck.style.color = (val.peak_check === "PASSED" ? "var(--accent-teal)" : "var(--accent-rose)");
+                    }
                     
                     const rmsCheck = document.getElementById("qcRmsCheckVal");
-                    rmsCheck.textContent = val.rms_check || "PASSED";
-                    rmsCheck.style.color = (val.rms_check === "PASSED" ? "var(--accent-teal)" : "var(--accent-rose)");
+                    if (rmsCheck) {
+                        rmsCheck.textContent = val.rms_check || "PASSED";
+                        rmsCheck.style.color = (val.rms_check === "PASSED" ? "var(--accent-teal)" : "var(--accent-rose)");
+                    }
                     
-                    document.getElementById("masterQcModal").classList.add("active");
+                    const masterQcModal = document.getElementById("masterQcModal");
+                    if (masterQcModal) masterQcModal.classList.add("active");
                     
                 } else if (data.status === "failed") {
                     clearInterval(compilationInterval);
-                    document.getElementById("compilationOverlay").classList.remove("active");
+                    
+                    const compilationOverlay = document.getElementById("compilationOverlay");
+                    if (compilationOverlay) compilationOverlay.classList.remove("active");
                     
                     // Reset header button state
                     const btn = document.getElementById("btnProcessManuscript");
                     const icon = document.getElementById("processIcon");
                     const text = document.getElementById("processText");
-                    btn.disabled = false;
-                    icon.style.animation = "none";
-                    text.textContent = "Process Manuscript";
+                    if (btn) btn.disabled = false;
+                    if (icon) icon.style.animation = "none";
+                    if (text) text.textContent = "Process Manuscript";
                     
                     alert(`Audiobook Mastering QC check failed: ${data.error}`);
                 }
@@ -2643,13 +2813,22 @@
             }
         }
 
-        // Global Tabs
         function switchGlobalTab(tabId) {
             document.querySelectorAll('.global-tab-pane').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.btn-global-tab').forEach(el => el.classList.remove('active'));
             
-            document.getElementById('tab-' + tabId).classList.add('active');
-            event.currentTarget.classList.add('active');
+            const targetPane = document.getElementById('tab-' + tabId);
+            if (targetPane) {
+                targetPane.classList.add('active');
+            }
+            
+            const btns = document.querySelectorAll('.btn-global-tab');
+            btns.forEach(btn => {
+                const onc = btn.getAttribute('onclick');
+                if (onc && onc.includes(`'${tabId}'`)) {
+                    btn.classList.add('active');
+                }
+            });
         }
 
         // Console Polling
