@@ -1189,10 +1189,6 @@
         </div>
     </div>
 
-    
-            </div>
-        </div>
-
         <!-- TAB 4: Analytics -->
         <div id="tab-analytics" class="global-tab-pane" style="padding: 40px; overflow-y: auto;">
             <div class="overview-panel" id="overviewPanel" style="display: none;">
@@ -1737,7 +1733,13 @@
         // Render Collapsible tree explorer
         function renderTree(hierarchy) {
             const treeContainer = document.getElementById("navigationTree");
+            if (!treeContainer) return;
             treeContainer.innerHTML = "";
+
+            if (!hierarchy || !hierarchy.parts) {
+                treeContainer.innerHTML = `<div style="padding: 10px; color: var(--text-dark);">No structure available.</div>`;
+                return;
+            }
 
             hierarchy.parts.forEach((part, pIdx) => {
                 const partId = `partNode_${pIdx}`;
@@ -1860,8 +1862,9 @@
             }
 
             scene.lines.forEach(line => {
+                const charName = line.character || "Narrator";
                 const row = document.createElement("div");
-                row.className = `transcript-line char-group-${line.character.replace(/\s+/g, '_')}`;
+                row.className = `transcript-line char-group-${charName.replace(/\s+/g, '_')}`;
                 row.id = `line_${line.line_id}`;
                 
                 let contentBox = '';
@@ -1887,15 +1890,15 @@
 
                 // Build dynamic dropdown options of character list for immediate inline override
                 const globalChars = currentHierarchy.metadata.global_characters || [];
-                const isFallback = (line.character === "char_unknown_fallback" || line.attribution_method === "char_unknown_fallback");
+                const isFallback = (charName === "char_unknown_fallback" || line.attribution_method === "char_unknown_fallback");
                 
-                let selectOptions = `<option value="${line.character}" selected>${isFallback ? '⚠️ Unknown Fallback' : line.character}</option>`;
+                let selectOptions = `<option value="${charName}" selected>${isFallback ? '⚠️ Unknown Fallback' : charName}</option>`;
                 globalChars.forEach(char => {
-                    if (char !== line.character) {
+                    if (char !== charName) {
                         selectOptions += `<option value="${char}">${char}</option>`;
                     }
                 });
-                if (line.character !== "Narrator") {
+                if (charName !== "Narrator") {
                     selectOptions += `<option value="Narrator">Narrator</option>`;
                 }
                 
@@ -2713,8 +2716,9 @@
                         body.id = `scene_body_${scene.scene_id}`;
                         
                         scene.lines.forEach(line => {
+                            const charName = line.character || "Narrator";
                             const lineRow = document.createElement("div");
-                            lineRow.className = `transcript-line char-group-${line.character.replace(/\s+/g, '_')}`;
+                            lineRow.className = `transcript-line char-group-${charName.replace(/\s+/g, '_')}`;
                             lineRow.id = `line_${line.line_id}`;
                             lineRow.style.marginBottom = "16px";
                             
@@ -2722,13 +2726,13 @@
                             if (line.segment_type === "narrative") {
                                 contentBox = `
                                     <div class="narration-context-box" style="font-size: 14.5px; border-left: 2px solid var(--accent-violet); padding: 12px 18px; background: rgba(255,255,255,0.015); line-height: 1.6; border-radius: 4px; color: var(--text-muted); margin: 6px 0;">
-                                        ${line.dialogue}
+                                        ${line.dialogue || ""}
                                     </div>
                                 `;
                             } else {
                                 contentBox = `
-                                    <div class="dialogue-bubble emotion-${line.emotion}">
-                                        “${line.dialogue}”
+                                    <div class="dialogue-bubble emotion-${line.emotion || "Neutral"}">
+                                        “${line.dialogue || ""}”
                                     </div>
                                 `;
                             }
@@ -2739,15 +2743,15 @@
                                 </span>` : '';
 
                             const globalChars = hierarchy.metadata.global_characters || [];
-                            const isFallback = (line.character === "char_unknown_fallback" || line.attribution_method === "char_unknown_fallback");
+                            const isFallback = (charName === "char_unknown_fallback" || line.attribution_method === "char_unknown_fallback");
                             
-                            let selectOptions = `<option value="${line.character}" selected>${isFallback ? '⚠️ Unknown Fallback' : line.character}</option>`;
+                            let selectOptions = `<option value="${charName}" selected>${isFallback ? '⚠️ Unknown Fallback' : charName}</option>`;
                             globalChars.forEach(char => {
-                                if (char !== line.character) {
+                                if (char !== charName) {
                                     selectOptions += `<option value="${char}">${char}</option>`;
                                 }
                             });
-                            if (line.character !== "Narrator") {
+                            if (charName !== "Narrator") {
                                 selectOptions += `<option value="Narrator">Narrator</option>`;
                             }
                             
