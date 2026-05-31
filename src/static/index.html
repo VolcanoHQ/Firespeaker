@@ -279,8 +279,8 @@
 
         /* Container Layout */
         .app-container {
-            display: grid;
-            grid-template-columns: 320px 1fr;
+            display: flex;
+            flex-direction: column;
             flex-grow: 1;
             overflow: hidden;
             height: calc(100vh - 89px);
@@ -295,6 +295,12 @@
             flex-direction: column;
             gap: 20px;
             overflow-y: auto;
+            width: 320px;
+            flex-shrink: 0;
+        }
+
+        #tab-transcript {
+            flex-direction: row;
         }
 
         .sidebar-title {
@@ -392,6 +398,7 @@
             grid-template-rows: auto 1fr;
             overflow: hidden;
             background: rgba(3, 7, 18, 0.1);
+            flex-grow: 1;
         }
 
         /* Dashboard Overview Metrics Card */
@@ -905,13 +912,18 @@
         /* Responsive */
         @media(max-width: 1024px) {
             .app-container {
-                grid-template-columns: 1fr;
+                height: auto;
+            }
+            #tab-transcript {
+                flex-direction: column;
                 height: auto;
             }
             .sidebar {
                 border-right: none;
                 border-bottom: 1px solid var(--border-color);
                 max-height: 250px;
+                width: 100%;
+                flex-shrink: 1;
             }
         }
     
@@ -1083,7 +1095,7 @@
         </div>
 
         <!-- TAB 3: Transcript -->
-        <div id="tab-transcript" class="global-tab-pane" style="flex-direction: row; height: calc(100vh - 100px);">
+        <div id="tab-transcript" class="global-tab-pane">
             <div class="sidebar">
             
             <!-- Author Verification Loop and Fine-Tuning Capturer -->
