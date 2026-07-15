@@ -254,13 +254,70 @@ class AudioMixer:
         try:
             # Execute subprocess call
             subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            logger.info("FFmpeg subprocess completed successfully.")
+            logger.info("FFmpeg subprocess completed successfully. Applying post-mastering loudness normalization...")
+            self.apply_post_mastering(output_path, profile_name)
             return True
         except (subprocess.SubprocessError, FileNotFoundError):
             logger.warning("FFmpeg command failed or not installed. Running high-fidelity simulation master layer...")
             # Simulate high-fidelity master output wav
             self._generate_simulated_master_wav(voice_path, music_path, output_path, profile_name)
             return True
+
+    def apply_post_mastering(self, output_path: str, profile_name: str = "standard") -> bool:
+        """
+        Loads the compiled WAV file, applies target RMS gain normalization 
+        and peak limiting to ensure perfect ACX compliance.
+        """
+        try:
+            profile = self.profiles.get(profile_name, self.profiles["standard"])
+            
+            with wave.open(output_path, "rb") as w:
+                params = w.getparams()
+                frames = w.readframes(params.nframes)
+                
+                if params.sampwidth == 2:
+                    samples = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
+                elif params.sampwidth == 3:
+                    raw = np.frombuffer(frames, dtype=np.uint8)
+                    triplets = raw.reshape(-1, 3)
+                    ints = (triplets[:, 0].astype(np.int32) << 8) | (triplets[:, 1].astype(np.int32) << 16) | (triplets[:, 2].astype(np.int32) << 24)
+                    samples = ints.astype(np.float32) / 2147483648.0
+                elif params.sampwidth == 1:
+                    samples = (np.frombuffer(frames, dtype=np.uint8).astype(np.float32) - 128.0) / 128.0
+                else:
+                    samples = np.frombuffer(frames, dtype=np.float32)
+            
+            current_rms = np.sqrt(np.mean(samples ** 2)) if len(samples) > 0 else 0.0
+            if current_rms == 0.0:
+                logger.warning("Empty audio samples during post-mastering.")
+                return False
+                
+            target_rms_db = profile["mastering_rms_target_db"]
+            target_rms_linear = 10 ** (target_rms_db / 20.0)
+            
+            mastered = samples * (target_rms_linear / current_rms)
+            
+            limit_linear = 10 ** (profile["mastering_peak_limit_db"] / 20.0)
+            mastered = np.clip(mastered, -limit_linear, limit_linear)
+            
+            # Re-convert back to the original sample width formatting
+            if params.sampwidth == 2:
+                mastered_bytes = (mastered * 32767.0).astype(np.int16).tobytes()
+            elif params.sampwidth == 1:
+                mastered_bytes = ((mastered * 127.0) + 128.0).astype(np.uint8).tobytes()
+            else:
+                mastered_bytes = mastered.tobytes()
+                
+            with wave.open(output_path, "wb") as w_out:
+                w_out.setparams(params)
+                w_out.writeframes(mastered_bytes)
+                
+            logger.info(f"Post-mastering applied to {output_path}: normalized from {20 * math.log10(current_rms):.2f} dBFS to target {target_rms_db:.2f} dBFS.")
+            return True
+        except Exception as e:
+            logger.error(f"Error during post-mastering gain calibration: {e}", exc_info=True)
+            return False
+
 
     # ----------------------------------------------------
     # ACX Loudness Calculations & QC Verification
@@ -373,9 +430,10 @@ class AudioMixer:
         """Generates real raw inputs for FFmpeg test commands if they do not exist."""
         for path in [voice_path, music_path]:
             if path and not os.path.exists(path):
-                self._generate_sine_wav(path, frequency=440.0, duration_sec=1.5)
+                # Generate silence (0.0 Hz) instead of a 440Hz beep to prevent loud artifacts in mixed outputs
+                self._generate_sine_wav(path, frequency=0.0, duration_sec=1.5)
         if sfx_path and not os.path.exists(sfx_path):
-            self._generate_sine_wav(sfx_path, frequency=880.0, duration_sec=0.5)
+            self._generate_sine_wav(sfx_path, frequency=0.0, duration_sec=0.5)
 
     def _generate_sine_wav(self, output_path: str, frequency: float, duration_sec: float):
         """Helper to output a physical wave file containing a standard sine wave."""

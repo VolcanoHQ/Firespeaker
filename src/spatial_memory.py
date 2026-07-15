@@ -171,10 +171,16 @@ class MemPalace:
         prosody_stabilization: float = 0.75,
         base_embedding: Optional[List[float]] = None
     ) -> bool:
-        """
-        Creates/updates a 'Drawer' mapping a character name to their default WAV ref
-        and granular voice modulation configurations for XTTS-v2.
-        """
+        # AI Audio Restoration Enhancer hook: Denoise input microphone reference before registration
+        if voice_ref_path and os.path.exists(voice_ref_path):
+            from src.voice_synthesizer import denoise_audio_file
+            if "_clean" not in voice_ref_path:
+                cleaned_path = voice_ref_path.replace(".wav", "_clean.wav")
+                logger.info(f"[Pre-Cloning Enhancer] Denoising reference audio {voice_ref_path} -> {cleaned_path}")
+                success = denoise_audio_file(voice_ref_path, cleaned_path)
+                if success:
+                    voice_ref_path = cleaned_path
+
         modulation_config = {
             "speed": speed,
             "pitch": pitch,
@@ -470,6 +476,35 @@ class MemPalace:
         except Exception as e:
             logger.error(f"Error logging room {room_id}: {e}")
             return False
+
+    def fetch_active_rag_context_rules(self, book_filename: str) -> list:
+        """
+        Queries MemPalace to extract confirmed merges, splits, and alias overrides 
+        to format them as prompt rules for the LLM pipeline.
+        """
+        cursor = self.conn.cursor()
+        # Retrieve confirmed character consolidation decisions
+        cursor.execute("""
+            SELECT original_name, canonical_name, is_confirmed 
+            FROM confirmed_merges 
+            WHERE book_filename = ?;
+        """, (book_filename,))
+        
+        rules = []
+        for orig, canon, is_confirmed in cursor.fetchall():
+            if is_confirmed == 1:
+                rules.append(f"Character alias correction: Treat '{orig}' as '{canon}'.")
+            else:
+                rules.append(f"Separation override: Do NOT merge '{orig}' with '{canon}'. Keep them as separate speakers.")
+                
+        # Retrieve pre-registered characters and their speed configurations to flag narrator roles
+        cursor.execute("SELECT character_name FROM drawers;")
+        drawers = [row[0] for row in cursor.fetchall()]
+        if drawers:
+            rules.append(f"Active registered character voices: {drawers}.")
+            
+        return rules
+
 
 
 def main():

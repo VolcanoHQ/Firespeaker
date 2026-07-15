@@ -53,43 +53,75 @@ class FirespeakerPipeline:
         """Pre-registers default voice profiles (timbre drawers) to guarantee compliance."""
         logger.info("Pre-registering default voice cast drawers in MemPalace...")
         # 1. Register Narrator
-        self.palace.register_character(
-            character_name="Narrator",
-            voice_ref_path="data/voice_references/narrator_mono.wav",
-            speed=1.0,
-            pitch=0.0
-        )
+        if not self.palace.get_character_drawer("Narrator"):
+            self.palace.register_character(
+                character_name="Narrator",
+                voice_ref_path="data/voice_references/narrator_mono.wav",
+                speed=1.0,
+                pitch=0.0
+            )
         # 2. Register Sherlock Holmes
-        self.palace.register_character(
-            character_name="Holmes",
-            voice_ref_path="data/voice_references/holmes_mono.wav",
-            speed=1.05,
-            pitch=1.5
-        )
+        if not self.palace.get_character_drawer("Holmes"):
+            self.palace.register_character(
+                character_name="Holmes",
+                voice_ref_path="data/voice_references/holmes_mono.wav",
+                speed=1.05,
+                pitch=1.5
+            )
         # 3. Register John Watson
-        self.palace.register_character(
-            character_name="Watson",
-            voice_ref_path="data/voice_references/watson_mono.wav",
-            speed=0.95,
-            pitch=-1.0
-        )
+        if not self.palace.get_character_drawer("Watson"):
+            self.palace.register_character(
+                character_name="Watson",
+                voice_ref_path="data/voice_references/watson_mono.wav",
+                speed=0.95,
+                pitch=-1.0
+            )
+        # 4. Register Arthur (preset)
+        if not self.palace.get_character_drawer("Arthur"):
+            self.palace.register_character(
+                character_name="Arthur",
+                voice_ref_path="data/voice_references/narrator_mono.wav",
+                speed=1.0,
+                pitch=-0.9
+            )
+        # 5. Register Emily (preset)
+        if not self.palace.get_character_drawer("Emily"):
+            self.palace.register_character(
+                character_name="Emily",
+                voice_ref_path="data/voice_references/narrator_mono.wav",
+                speed=1.05,
+                pitch=3.86
+            )
+        # 6. Register Michael (preset)
+        if not self.palace.get_character_drawer("Michael"):
+            self.palace.register_character(
+                character_name="Michael",
+                voice_ref_path="data/voice_references/narrator_mono.wav",
+                speed=0.9,
+                pitch=-3.86
+            )
         
-        # Pre-register emotional timbre references for Holmes
-        self.palace.register_emotional_reference(
-            character_name="Holmes",
-            emotion="Tension",
-            voice_ref_path="data/voice_references/holmes_anxious.wav",
-            embedding=[0.9, 0.3, -0.05, 0.4]
-        )
+        # Pre-register emotional timbre references for Holmes if they do not exist
+        cursor = self.palace.conn.cursor()
+        cursor.execute("SELECT 1 FROM emotional_references WHERE character_name = 'Holmes' AND emotion = 'Tension';")
+        if not cursor.fetchone():
+            self.palace.register_emotional_reference(
+                character_name="Holmes",
+                emotion="Tension",
+                voice_ref_path="data/voice_references/holmes_anxious.wav",
+                embedding=[0.9, 0.3, -0.05, 0.4]
+            )
         
-        self.palace.register_emotional_reference(
-            character_name="Holmes",
-            emotion="Joy",
-            voice_ref_path="data/voice_references/holmes_excited.wav",
-            embedding=[0.5, 0.8, 0.2, -0.1]
-        )
+        cursor.execute("SELECT 1 FROM emotional_references WHERE character_name = 'Holmes' AND emotion = 'Joy';")
+        if not cursor.fetchone():
+            self.palace.register_emotional_reference(
+                character_name="Holmes",
+                emotion="Joy",
+                voice_ref_path="data/voice_references/holmes_excited.wav",
+                embedding=[0.5, 0.8, 0.2, -0.1]
+            )
 
-    def run_full_pipeline(self, manuscript_path: str, output_master_wav: str, profile_name: str = "standard") -> bool:
+    def run_full_pipeline(self, manuscript_path: str, output_master_wav: str, profile_name: str = "standard", user_tier: str = "free", chapters: str = None, enable_llm_enrichment: bool = False) -> bool:
         print("\n=======================================================")
         print("=== FIRESPEAKER STUDIO: END-TO-END PIPELINE RUN ===")
         print("=======================================================\n")
@@ -97,9 +129,87 @@ class FirespeakerPipeline:
         # 0. Set up default voices in database (if not registered already)
         self.register_voice_cast()
         
-        # 1. Parse Manuscript (Component 1)
-        print("Step 1: Parsing manuscript and running coreference/emotion extraction...")
-        script_data = self.analyzer.parse_manuscript(manuscript_path)
+        # Check if there is a cached hierarchy file to preserve human-in-the-loop edits.
+        import re
+        base_name = os.path.splitext(os.path.basename(manuscript_path))[0]
+        slug = re.sub(r'[^a-zA-Z0-9_\-]', '', base_name)
+        tier = self.analyzer.production_tier
+        cached_hierarchy_path = f"data/processed/{slug}/Tier_{tier}/hierarchy.json"
+        
+        if os.path.exists(cached_hierarchy_path):
+            print(f"Loading script data from cached hierarchy: {cached_hierarchy_path}")
+            with open(cached_hierarchy_path, "r", encoding="utf-8") as f:
+                hierarchy_data = json.load(f)
+            
+            # Flatten lines from parts -> chapters -> scenes -> lines
+            flat_lines = []
+            for part in hierarchy_data.get("parts", []):
+                for chapter in part.get("chapters", []):
+                    for scene in chapter.get("scenes", []):
+                        for line in scene.get("lines", []):
+                            flat_lines.append(line)
+            
+            script_data = {
+                "metadata": {
+                    "source_file": hierarchy_data["metadata"].get("source_file"),
+                    "quote_style_detected": hierarchy_data["metadata"].get("quote_style_detected", "double"),
+                    "total_chapters": hierarchy_data["metadata"].get("total_chapters", 1),
+                    "total_lines_extracted": len(flat_lines),
+                    "characters_identified": hierarchy_data["metadata"].get("global_characters", []),
+                    "merge_decisions": hierarchy_data["metadata"].get("merge_decisions", [])
+                },
+                "script": flat_lines
+            }
+        elif self.analyzer.production_tier == 1:
+            print("Step 1: Running Tier 1 Deterministic Ingestion Pipeline...")
+            from src.tier_1_parser import ingest_manuscript_tier_1
+            manifest = ingest_manuscript_tier_1(manuscript_path, chapters=chapters, enable_llm_enrichment=enable_llm_enrichment)
+
+            # Convert Manifest Payload to the dictionary script format expected by main.py
+            flat_lines = []
+            for part in manifest.parts:
+                for chapter in part.chapters:
+                    for scene in chapter.scenes:
+                        for line in scene.lines:
+                            flat_lines.append(line.model_dump())
+
+            script_data = {
+                "metadata": {
+                    "source_file": manifest.source_file,
+                    "quote_style_detected": "double",
+                    "total_chapters": manifest.total_chapters,
+                    "total_lines_extracted": len(flat_lines),
+                    "characters_identified": sorted(set(line["character"] for line in flat_lines)),
+                    "merge_decisions": []
+                },
+                "script": flat_lines
+            }
+        else:
+            print("Step 1: Parsing manuscript and running coreference/emotion extraction...")
+            script_data = self.analyzer.parse_manuscript(manuscript_path, chapters=chapters)
+            
+        # Filter by chapters if requested
+        if chapters:
+            try:
+                selected_chapters = set()
+                for part in chapters.split(','):
+                    if '-' in part:
+                        start, end = part.split('-')
+                        selected_chapters.update(range(int(start), int(end) + 1))
+                    else:
+                        selected_chapters.add(int(part))
+                
+                filtered_lines = [line for line in script_data["script"] if line.get("chapter") in selected_chapters]
+                print(f"Filtering script to chapters {chapters}. Lines before: {len(script_data['script'])}, after: {len(filtered_lines)}")
+                
+                script_data["script"] = filtered_lines
+                script_data["metadata"]["total_lines_extracted"] = len(filtered_lines)
+                
+                unique_chapters = set(line.get("chapter") for line in filtered_lines if line.get("chapter") is not None)
+                script_data["metadata"]["total_chapters"] = len(unique_chapters)
+            except Exception as e:
+                logger.error(f"Failed to filter chapters '{chapters}': {e}")
+
         script_output_path = os.path.join(self.workspace_dir, "script_output.json")
         self.analyzer.save_script(script_data, script_output_path)
         print(f"  --> Ingested successfully. Total lines: {script_data['metadata']['total_lines_extracted']}\n")
@@ -124,8 +234,12 @@ class FirespeakerPipeline:
         logger.info(f"Human-readable attribution summary compiled at: {attribution_log_path}")
 
         # Log Chapters (Wings) in MemPalace database
-        for chapter in range(1, script_data["metadata"]["total_chapters"] + 1):
-            self.palace.log_wing(f"wing_c{chapter}", chapter, f"Chapter {chapter}")
+        logged_chapters = set()
+        for line in script_data["script"]:
+            ch = line.get("chapter")
+            if ch is not None and ch not in logged_chapters:
+                self.palace.log_wing(f"wing_c{ch}", ch, f"Chapter {ch}")
+                logged_chapters.add(ch)
             
         # 1.8. Ensure all characters in the manuscript have a registered voice drawer
         logger.info("Validating character drawer assignments to prevent identity blocks...")
@@ -142,72 +256,16 @@ class FirespeakerPipeline:
                         pitch=0.0
                     )
             
-        # 2. Synthesize Character Dialogue Lines (Component 2)
-        print("Step 2: Synthesizing expressive character lines with pre-flight resource checks...")
-        voice_files: List[str] = []
+        # Import compiler dynamically to prevent circular dependencies
+        from src.tts_compiler import compile_modified_json
         
-        for idx, line in enumerate(script_data["script"]):
-            line_wav = os.path.join(self.outputs_dir, f"line_{line['line_id']}.wav")
-            text_to_synth = line["dialogue"] if line["dialogue"] else line["narration_before"]
-            if not text_to_synth:
-                text_to_synth = "..."
-                
-            print(f"  - Synthesizing Line {line['line_number']} [{line['character']} - Mood: {line['emotion']}]: '{text_to_synth[:40]}...'")
-            
-            # Synthesize line safely (drawer verified inside)
-            res = self.synth.synthesize_line(
-                character_name=line["character"],
-                dialogue_text=text_to_synth,
-                target_emotion=line["emotion"],
-                output_wav_path=line_wav
-            )
-            voice_files.append(res["output_path"])
-            
-        print("  --> Speech synthesis complete.\n")
-        
-        # 3. Sound Design, Mood Mapping & UCS Categorization (Component 3)
-        print("Step 3: Determining UCS sound design mappings & mood asset layers...")
-        first_line = script_data["script"][0]
-        # Map primary mood background ambience track
-        ambient_music_asset = self.mixer.get_ambient_music_for_mood(first_line["emotion"])
-        
-        # Map dialogue non-verbal sound effects triggers
-        sfx_asset_path = None
-        for line in script_data["script"]:
-            sfx_match = self.mixer.map_dialogue_sfx(line["dialogue"], line["emotion"])
-            if sfx_match:
-                print(f"  - Dynamic Sound Design Event: {sfx_match['description']} (UCS Category: {sfx_match['ucs_code']})")
-                sfx_asset_path = sfx_match["asset_path"]
-                break
-                
-        # 4. Multi-Track Sidechain Ducking & ACX Compliant Mastering (Component 3)
-        print("\nStep 4: Executing dynamic sidechain compression & ACX mastering...")
-        # Compile all individual voice tracks into a single sequenced voice timeline
-        compiled_voice = os.path.join(self.workspace_dir, "compiled_voice.wav")
-        print("  - Stitching individual voice segments chronologically into a single chapter track...")
-        stitch_success = self.mixer.concatenate_voice_segments(
-            voice_files=voice_files,
-            output_path=compiled_voice,
-            silence_gap_sec=0.5
+        print("Step 2-5: Executing TTS Synthesis, Modifier Application, and Mastering Mix...")
+        qc_report = compile_modified_json(
+            script_data=script_data,
+            output_master_wav=output_master_wav,
+            profile_name=profile_name,
+            user_tier=user_tier
         )
-        
-        if not stitch_success:
-            logger.error("Failed to compile voice timeline. Falling back to a synthetic tone for master mix.")
-            compiled_voice = os.path.join(self.outputs_dir, "fallback_test_voice.wav")
-            self.mixer._generate_sine_wav(compiled_voice, 440.0, 3.0)
-            
-        self.mixer.mix_tracks(
-            voice_path=compiled_voice,
-            music_path=ambient_music_asset,
-            sfx_path=sfx_asset_path,
-            output_path=output_master_wav,
-            profile_name=profile_name
-        )
-        print(f"  --> Dynamic sidechain master written successfully: {output_master_wav}\n")
-        
-        # 5. Mathematical ACX Loudness QC Report (Component 3)
-        print("Step 5: Running post-processing ACX Quality Control audit...")
-        qc_report = self.mixer.verify_acx_compliance(output_master_wav, profile_name)
         
         print("\n=======================================================")
         print("=== PIPELINE COMPLETION REPORT ===")
@@ -220,9 +278,8 @@ class FirespeakerPipeline:
         print(f"- ACX Compliance: {qc_report['validation']['overall_acx_compliance']}")
         print("=======================================================\n")
         
-        self.palace.close()
-        self.synth.unload_models()
         return qc_report["validation"]["overall_acx_compliance"] == "PASSED"
+
 
 
 def main():
@@ -235,6 +292,8 @@ def main():
     parser.add_argument("--input", type=str, default=None, help="Fallback path to input text manuscript")
     parser.add_argument("--output", type=str, default="scratch/pipeline_workspace/output_master.wav", help="Path to output mastered ACX audio")
     parser.add_argument("--profile", type=str, default="standard", help="Target mixing profile (standard, dramatic)")
+    parser.add_argument("--chapters", type=str, default=None, help="Chapter(s) to process, e.g. '1', '1,2,3', or '1-3'")
+    parser.add_argument("--enable-llm-enrichment", action="store_true", help="Opt-in: enrich Tier 1 output with cloud/local LLM speaker attribution (Gemini free tier -> Groq -> Ollama -> off). No effect outside production_tier == 1.")
     
     # Character Voice Drawer registration commands
     parser.add_argument("--register", type=str, default=None, help="Register a character Drawer name in MemPalace")
@@ -280,7 +339,7 @@ def main():
                 Watson replied, "No, it is too dangerous."
                 """)
                 
-        success = pipeline.run_full_pipeline(input_path, args.output, args.profile)
+        success = pipeline.run_full_pipeline(input_path, args.output, args.profile, chapters=args.chapters, enable_llm_enrichment=args.enable_llm_enrichment)
         sys.exit(0 if success else 1)
         
     parser.print_help()
