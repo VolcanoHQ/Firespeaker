@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Firespeaker Review Console</title>
+<style>
+  :root {
+    --bg: #16181d; --panel: #1e2128; --panel2: #23272f; --line: #2e333d;
+    --text: #d6dae2; --dim: #8b91a0; --accent: #e8734a; --accent2: #f0a13c;
+    --ok: #5fb878; --warn: #e6a23c; --bad: #d96a6a;
+    --gemini: #6ea8fe; --groq: #f0a13c; --ollama: #b78bf0; --review: #5fb878;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font: 13px/1.5 "Segoe UI", system-ui, sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+  header { display: flex; align-items: center; gap: 14px; padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line); flex: 0 0 auto; }
+  header h1 { font-size: 15px; font-weight: 600; letter-spacing: .4px; }
+  header h1 span { color: var(--accent); }
+  header .sub { color: var(--dim); font-size: 12px; }
+  #progressChip { margin-left: auto; font-size: 12px; color: var(--dim); background: var(--panel2); border: 1px solid var(--line); border-radius: 12px; padding: 3px 12px; }
+  #layout { display: flex; flex: 1 1 auto; min-height: 0; }
+  .pane { overflow-y: auto; min-height: 0; }
+  #booksPane { flex: 0 0 250px; background: var(--panel); border-right: 1px solid var(--line); padding: 10px; }
+  #treePane { flex: 0 0 340px; background: var(--panel2); border-right: 1px solid var(--line); padding: 10px; }
+  #scenePane { flex: 1 1 auto; padding: 14px 18px; }
+  .paneTitle { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--dim); margin: 4px 2px 8px; }
+
+  .bookCard { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 6px; cursor: pointer; }
+  .bookCard:hover { border-color: var(--accent); }
+  .bookCard.active { border-color: var(--accent); background: #2a2119; }
+  .bookCard .name { font-weight: 600; font-size: 13px; word-break: break-word; }
+  .bookCard .meta { color: var(--dim); font-size: 11px; margin-top: 2px; }
+  .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 4px; background: var(--line); }
+  .dot.on { background: var(--ok); }
+
+  .chapter { margin-bottom: 4px; }
+  .chapterHead { padding: 6px 8px; cursor: pointer; border-radius: 6px; font-weight: 600; display: flex; gap: 8px; align-items: baseline; }
+  .chapterHead:hover { background: var(--panel); }
+  .chapterHead .count { color: var(--dim); font-weight: 400; font-size: 11px; }
+  .sceneRow { display: flex; align-items: center; gap: 8px; padding: 5px 8px 5px 22px; border-radius: 6px; cursor: pointer; }
+  .sceneRow:hover { background: var(--panel); }
+  .sceneRow.active { background: #2a2119; outline: 1px solid var(--accent); }
+  .sceneRow .sid { color: var(--dim); font-size: 11px; flex: 0 0 auto; }
+  .sceneRow .ex { flex: 1 1 auto; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--text); font-size: 12px; }
+  .badge { flex: 0 0 auto; font-size: 10px; border-radius: 9px; padding: 1px 7px; border: 1px solid var(--line); color: var(--dim); }
+  .badge.director { color: var(--gemini); border-color: var(--gemini); }
+  .badge.cov-full { color: var(--ok); border-color: var(--ok); }
+  .badge.cov-part { color: var(--warn); border-color: var(--warn); }
+  .badge.cov-none { color: var(--dim); }
+
+  #sceneHeader { display: flex; align-items: baseline; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+  #sceneHeader h2 { font-size: 15px; }
+  #sceneHeader .prov { color: var(--dim); font-size: 12px; }
+  .tabs { display: flex; gap: 4px; margin: 8px 0 14px; border-bottom: 1px solid var(--line); }
+  .tab { padding: 6px 14px; cursor: pointer; color: var(--dim); border-bottom: 2px solid transparent; font-size: 12.5px; }
+  .tab.active { color: var(--text); border-bottom-color: var(--accent); }
+
+  .lineRow { display: flex; gap: 10px; padding: 7px 8px; border-radius: 6px; margin-bottom: 2px; align-items: flex-start; }
+  .lineRow:nth-child(odd) { background: rgba(255,255,255,0.015); }
+  .lineRow .idx { flex: 0 0 30px; color: var(--dim); font-size: 11px; text-align: right; padding-top: 2px; }
+  .speaker { flex: 0 0 130px; font-weight: 600; font-size: 12px; padding-top: 1px; word-break: break-word; }
+  .speaker.narr { color: var(--dim); font-weight: 400; }
+  .lineText { flex: 1 1 auto; }
+  .lineText.narrative { color: var(--dim); }
+  .provChips { flex: 0 0 auto; display: flex; gap: 4px; align-items: center; padding-top: 2px; }
+  .chip { font-size: 10px; border-radius: 8px; padding: 0 7px; border: 1px solid var(--line); color: var(--dim); white-space: nowrap; }
+  .chip.gemini { color: var(--gemini); border-color: #31435f; }
+  .chip.groq { color: var(--groq); border-color: #5a4525; }
+  .chip.ollama { color: var(--ollama); border-color: #4a3a5f; }
+  .chip.reviewed { color: var(--review); border-color: #2f4a38; }
+  .chip.default { color: #6a7080; }
+  .chip.vocal { color: var(--accent2); border-color: #5a4525; }
+  .confBar { width: 34px; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+  .confBar i { display: block; height: 100%; background: var(--ok); }
+  .playBtn { background: none; border: 1px solid var(--line); color: var(--dim); border-radius: 50%; width: 20px; height: 20px; font-size: 10px; cursor: pointer; line-height: 1; }
+  .playBtn:hover { color: var(--accent); border-color: var(--accent); }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; }
+  .card h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .8px; color: var(--dim); margin-bottom: 8px; }
+  .kv { display: grid; grid-template-columns: 130px 1fr; gap: 3px 12px; font-size: 12.5px; }
+  .kv .k { color: var(--dim); }
+  .evRow { display: flex; gap: 10px; padding: 6px 4px; border-top: 1px solid var(--line); font-size: 12.5px; align-items: baseline; }
+  .evRow:first-of-type { border-top: none; }
+  .evRow .anchor { flex: 0 0 84px; color: var(--accent2); font-size: 11px; }
+  .evRow .what { flex: 1 1 auto; }
+  .evRow .lvl { flex: 0 0 auto; color: var(--dim); font-size: 11px; }
+  .layer { color: var(--dim); font-size: 12px; padding-left: 12px; }
+  .empty { color: var(--dim); font-style: italic; padding: 30px 0; text-align: center; }
+  .dram { border-left: 3px solid var(--accent); padding-left: 10px; margin: 6px 0; }
+  .dram .who { font-weight: 600; color: var(--accent2); font-size: 12px; }
+  .dram .why { color: var(--dim); font-size: 11.5px; }
+  .mergeGroup { font-size: 12.5px; padding: 3px 0; }
+  .mergeGroup b { color: var(--accent2); }
+  audio { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>VOLCANO <span>STUDIOS</span> · Review Console</h1>
+  <span class="sub">Phase 1 — read-only artifact review</span>
+  <span id="progressChip">idle</span>
+</header>
+<div id="layout">
+  <div id="booksPane" class="pane">
+    <div class="paneTitle">Books</div>
+    <div id="bookList"><div class="empty">loading…</div></div>
+  </div>
+  <div id="treePane" class="pane">
+    <div class="paneTitle" id="treeTitle">Structure</div>
+    <div id="tree"><div class="empty">select a book</div></div>
+  </div>
+  <div id="scenePane" class="pane">
+    <div id="sceneView"><div class="empty">select a scene</div></div>
+  </div>
+</div>
+<audio id="player"></audio>
+<script>
+"use strict";
+const $ = sel => document.querySelector(sel);
+const api = p => fetch(p).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let state = { book: null, scene: null, tab: "transcript", detail: null };
+
+/* ---------- provenance helpers ---------- */
+function provChip(method) {
+  const m = String(method || "");
+  if (m === "Tier 1 Default") return '<span class="chip default">default</span>';
+  let out = "";
+  if (m.includes("gemini")) out += '<span class="chip gemini">gemini</span>';
+  else if (m.includes("groq")) out += '<span class="chip groq">groq</span>';
+  else if (m.includes("ollama")) out += '<span class="chip ollama">ollama</span>';
+  else if (m) out += `<span class="chip">${esc(m.replace("+reviewed","").slice(0,18))}</span>`;
+  if (m.includes("+reviewed")) out += '<span class="chip reviewed">reviewed</span>';
+  return out;
+}
+function covBadge(s) {
+  if (!s.dialogue) return '<span class="badge cov-none">no dlg</span>';
+  const pct = Math.round(100 * s.enriched / s.dialogue);
+  const cls = pct >= 95 ? "cov-full" : (pct > 0 ? "cov-part" : "cov-none");
+  return `<span class="badge ${cls}">${pct}% attr</span>`;
+}
+
+/* ---------- books pane ---------- */
+async function loadBooks() {
+  const books = await api("/api/console/books");
+  $("#bookList").innerHTML = books.length ? books.map(b => {
+    const a = b.artifacts;
+    return `<div class="bookCard" data-book="${esc(b.book)}">
+      <div class="name">${esc(b.book)}</div>
+      <div class="meta">${b.scenes} scenes</div>
+      <div class="meta">
+        <span class="dot ${a.enriched ? "on" : ""}"></span>Tier2
+        <span class="dot ${a.production_script ? "on" : ""}"></span>Direction
+        <span class="dot ${a.sound_design ? "on" : ""}"></span>Sound
+        <span class="dot ${a.dramatization ? "on" : ""}"></span>Drama
+      </div></div>`;
+  }).join("") : '<div class="empty">no ingested books</div>';
+  document.querySelectorAll(".bookCard").forEach(el =>
+    el.addEventListener("click", () => selectBook(el.dataset.book, el)));
+}
+
+/* ---------- tree pane ---------- */
+async function selectBook(name, el) {
+  document.querySelectorAll(".bookCard").forEach(e => e.classList.remove("active"));
+  if (el) el.classList.add("active");
+  state.book = name; state.scene = null;
+  $("#treeTitle").textContent = name;
+  $("#tree").innerHTML = '<div class="empty">loading…</div>';
+  $("#sceneView").innerHTML = '<div class="empty">select a scene</div>';
+  const t = await api(`/api/console/book?name=${encodeURIComponent(name)}`);
+  let html = "";
+  if (t.book_bible) {
+    const bb = t.book_bible;
+    html += `<div class="card"><h3>Book Bible</h3><div class="kv">
+      ${["title","author","era","genre","overall_tone"].filter(k => bb[k]).map(k =>
+        `<span class="k">${k.replace("_"," ")}</span><span>${esc(bb[k])}</span>`).join("")}
+    </div></div>`;
+  }
+  if (t.alias_merges && t.alias_merges.length) {
+    html += `<div class="card"><h3>Identity groups</h3>` + t.alias_merges.map(g =>
+      `<div class="mergeGroup"><b>${esc(g.canonical)}</b> ← ${esc((g.aliases||[]).join(", "))}
+       <span class="chip">${esc(String(g.resolved_by||"").slice(0,24))}</span></div>`).join("") + `</div>`;
+  }
+  for (const p of t.parts) {
+    if (t.parts.length > 1) html += `<div class="chapterHead">${esc(p.title)}</div>`;
+    for (const ch of p.chapters) {
+      html += `<div class="chapter">
+        <div class="chapterHead" data-toggle>${esc(ch.title)}
+          <span class="count">${ch.scenes.length} scene${ch.scenes.length===1?"":"s"}</span></div>
+        <div class="scenes">` + ch.scenes.map(s => {
+          const src = s.boundary_source === "director_ai"
+            ? '<span class="badge director">G4</span>' : "";
+          return `<div class="sceneRow" data-scene="${esc(s.scene_id)}">
+            <span class="sid">${esc(s.scene_id.split("_").pop())}</span>
+            <span class="ex">${esc(s.excerpt)}</span>${src}${covBadge(s)}
+          </div>`;
+        }).join("") + `</div></div>`;
+    }
+  }
+  $("#tree").innerHTML = html || '<div class="empty">no structure artifacts</div>';
+  document.querySelectorAll("#tree .sceneRow").forEach(el =>
+    el.addEventListener("click", () => selectScene(el.dataset.scene, el)));
+  document.querySelectorAll("#tree [data-toggle]").forEach(el =>
+    el.addEventListener("click", () => {
+      const sc = el.nextElementSibling;
+      if (sc) sc.style.display = sc.style.display === "none" ? "" : "none";
+    }));
+}
+
+/* ---------- scene pane ---------- */
+async function selectScene(sceneId, el) {
+  document.querySelectorAll("#tree .sceneRow").forEach(e => e.classList.remove("active"));
+  if (el) el.classList.add("active");
+  state.scene = sceneId;
+  $("#sceneView").innerHTML = '<div class="empty">loading…</div>';
+  state.detail = await api(`/api/console/scene?book=${encodeURIComponent(state.book)}&scene=${encodeURIComponent(sceneId)}`);
+  state.tab = "transcript";
+  renderScene();
+}
+
+function renderScene() {
+  const d = state.detail;
+  if (!d) return;
+  const hasLane = d.direction || d.sound_design || d.dramatization || (d.sfx_cues||[]).length;
+  const tabs = [["transcript","Transcript"], ["lane","Production Lane" + (hasLane ? "" : " (empty)")], ["text","Scene Text"]];
+  let html = `<div id="sceneHeader"><h2>${esc(d.scene_id)}</h2>
+    <span class="prov">${d.lines.length} lines · ${d.lines.filter(l=>l.segment_type==="dialogue").length} dialogue</span></div>
+    <div class="tabs">` + tabs.map(([id, label]) =>
+      `<div class="tab ${state.tab===id?"active":""}" data-tab="${id}">${label}</div>`).join("") + `</div>`;
+
+  if (state.tab === "transcript") html += renderTranscript(d);
+  else if (state.tab === "lane") html += renderLane(d);
+  else html += `<div class="card" style="white-space:pre-wrap">${esc(d.scene_text)}</div>`;
+
+  $("#sceneView").innerHTML = html;
+  document.querySelectorAll(".tab").forEach(el =>
+    el.addEventListener("click", () => { state.tab = el.dataset.tab; renderScene(); }));
+  document.querySelectorAll(".playBtn").forEach(el =>
+    el.addEventListener("click", () => {
+      const player = $("#player");
+      player.src = "/api/console/audio?file=" + encodeURIComponent(el.dataset.wav);
+      player.play();
+    }));
+}
+
+function renderTranscript(d) {
+  return d.lines.map(l => {
+    const isNarr = l.character === "Narrator" || l.segment_type !== "dialogue";
+    const conf = typeof l.confidence === "number" ? l.confidence : null;
+    return `<div class="lineRow">
+      <span class="idx">${l.index}</span>
+      <span class="speaker ${isNarr ? "narr" : ""}">${esc(l.character)}</span>
+      <span class="lineText ${l.segment_type !== "dialogue" ? "narrative" : ""}">${esc(l.text)}</span>
+      <span class="provChips">
+        ${l.utterance_type === "vocalization" ? '<span class="chip vocal">vocal</span>' : ""}
+        ${l.segment_type === "dialogue" ? provChip(l.attribution_method) : ""}
+        ${conf !== null && l.segment_type === "dialogue" ? `<span class="confBar" title="confidence ${conf}"><i style="width:${Math.round(conf*100)}%"></i></span>` : ""}
+        ${l.wav ? `<button class="playBtn" data-wav="${esc(l.wav)}" title="audition cached line">▶</button>` : ""}
+      </span></div>`;
+  }).join("");
+}
+
+function renderLane(d) {
+  let html = "";
+  if (d.direction) {
+    const mu = d.direction.music || {};
+    const env = d.direction.environment || {};
+    html += `<div class="card"><h3>Music Direction</h3><div class="kv">
+      <span class="k">base mood</span><span>${esc(mu.base_mood)}</span>
+      <span class="k">style</span><span>${esc(mu.style || "—")}</span></div>`;
+    for (const s of (mu.stingers || []))
+      html += `<div class="evRow"><span class="anchor">after line ${s.after_line_index}</span>
+        <span class="what">stinger: ${esc(s.description || s.mood || "")}</span></div>`;
+    for (const ev of (mu.events || []))
+      html += `<div class="evRow"><span class="anchor">after line ${ev.after_line_index}</span>
+        <span class="what">${esc(ev.action)}: ${esc(ev.reason || ev.new_mood || "")}</span></div>`;
+    html += `</div>`;
+    if (Object.keys(env).length) {
+      html += `<div class="card"><h3>Environment</h3><div class="kv">` +
+        Object.entries(env).filter(([,v]) => v && typeof v !== "object").map(([k,v]) =>
+          `<span class="k">${esc(k)}</span><span>${esc(v)}</span>`).join("") + `</div></div>`;
+    }
+  }
+  if (d.sound_design) {
+    const sd = d.sound_design;
+    html += `<div class="card"><h3>Sound Design</h3>`;
+    if ((sd.continuous_ambience || []).length)
+      html += `<div class="evRow"><span class="anchor">ambience</span>
+        <span class="what">${esc(sd.continuous_ambience.join(" · "))}</span></div>`;
+    for (const ev of (sd.events || [])) {
+      html += `<div class="evRow"><span class="anchor">line ${ev.anchor_line_index}</span>
+        <span class="what"><b>${esc(ev.name)}</b>${ev.emotional_intent ? " — " + esc(ev.emotional_intent) : ""}</span>
+        <span class="lvl">${esc(ev.category || "")}</span></div>`;
+      for (const ly of (ev.layers || []))
+        html += `<div class="layer">◦ ${esc(ly.component)} <span style="color:var(--dim)">(${esc(ly.timing)}, ${esc(ly.level)})</span></div>`;
+    }
+    html += `</div>`;
+  }
+  if ((d.sfx_cues || []).length) {
+    html += `<div class="card"><h3>Grounded onomatopoeia</h3>` + d.sfx_cues.map(c =>
+      `<div class="evRow"><span class="what">"${esc(c.sound_text)}" — ${esc(c.description)}</span></div>`).join("") + `</div>`;
+  }
+  if (d.dramatization && (d.dramatization.inserts || []).length) {
+    html += `<div class="card"><h3>Dramatized inserts (${d.dramatization.inserts.length})</h3>` +
+      d.dramatization.inserts.map(i =>
+        `<div class="dram"><span class="who">${esc(i.character)}</span> after line ${i.anchor_line_index}
+         <span class="chip">${esc(i.insert_type)}</span><br>${esc(i.text)}
+         <div class="why">${esc(i.grounding || i.reason || "")}</div></div>`).join("") + `</div>`;
+  }
+  return html || '<div class="empty">no production artifacts for this scene — run scene_director</div>';
+}
+
+/* ---------- progress chip ---------- */
+async function pollProgress() {
+  // progress file shape: { book: { stages: { stageName: {current,total,pct,updated_at} } } }
+  try {
+    const p = await api("/api/console/progress");
+    let latest = null;
+    for (const [book, entry] of Object.entries(p)) {
+      for (const [stage, s] of Object.entries(entry.stages || {})) {
+        if (!latest || (s.updated_at || 0) > latest.at)
+          latest = { at: s.updated_at || 0, book, stage, s };
+      }
+    }
+    if (!latest) { $("#progressChip").textContent = "idle"; return; }
+    const { book, stage, s } = latest;
+    const fresh = (Date.now() / 1000 - latest.at) < 600;
+    $("#progressChip").textContent = fresh
+      ? `${book} · ${stage} ${Math.round(s.pct || 0)}% (${s.current}/${s.total})`
+      : "idle";
+  } catch { $("#progressChip").textContent = "idle"; }
+}
+
+loadBooks();
+pollProgress();
+setInterval(pollProgress, 4000);
+</script>
+</body>
+</html>

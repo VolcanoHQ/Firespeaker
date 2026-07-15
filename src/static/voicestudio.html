@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Volcano Studios — Voice Cloning Studio</title>
+<style>
+  :root { --bg:#16181d; --panel:#1e2128; --panel2:#23272f; --line:#2e333d; --text:#d6dae2;
+          --dim:#8b91a0; --accent:#e8734a; --accent2:#f0a13c; --ok:#5fb878; --warn:#e6a23c; --bad:#d96a6a; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font:14px/1.55 "Segoe UI",system-ui,sans-serif; min-height:100vh; }
+  header { display:flex; align-items:center; gap:14px; padding:12px 20px; background:var(--panel); border-bottom:1px solid var(--line); }
+  header h1 { font-size:16px; font-weight:600; } header h1 span { color:var(--accent); }
+  #steps { display:flex; gap:2px; margin-left:auto; }
+  .stepDot { padding:4px 12px; font-size:11.5px; border-radius:12px; color:var(--dim); cursor:pointer; }
+  .stepDot.active { background:var(--accent); color:#fff; }
+  .stepDot.done { color:var(--ok); }
+  main { max-width:860px; margin:0 auto; padding:28px 20px 60px; }
+  h2 { font-size:18px; margin-bottom:6px; } .lead { color:var(--dim); margin-bottom:20px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:18px; margin-bottom:14px; }
+  .card h3 { font-size:13px; text-transform:uppercase; letter-spacing:.8px; color:var(--dim); margin-bottom:10px; }
+  label { display:block; color:var(--dim); font-size:12px; margin:10px 0 4px; }
+  input[type=text], input[type=number], textarea, select {
+    width:100%; background:var(--panel2); color:var(--text); border:1px solid var(--line);
+    border-radius:6px; padding:8px 10px; font:inherit; }
+  textarea { min-height:64px; resize:vertical; }
+  button { background:var(--accent); border:none; color:#fff; font:inherit; font-weight:600;
+    padding:9px 20px; border-radius:7px; cursor:pointer; }
+  button.ghost { background:transparent; border:1px solid var(--line); color:var(--text); font-weight:400; }
+  button:disabled { opacity:.45; cursor:default; }
+  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .promptText { font-size:16px; background:var(--panel2); border-left:3px solid var(--accent); border-radius:6px; padding:14px 16px; margin:10px 0; }
+  .recBtn { width:64px; height:64px; border-radius:50%; font-size:22px; }
+  .recBtn.recording { background:var(--bad); animation:pulse 1.2s infinite; }
+  @keyframes pulse { 50% { transform:scale(1.08); } }
+  .verdict { padding:10px 12px; border-radius:7px; margin-top:10px; font-size:13px; }
+  .verdict.PASS { background:#1d2f24; color:var(--ok); }
+  .verdict.FLAG { background:#33290f; color:var(--warn); }
+  .verdict.REJECT { background:#33191c; color:var(--bad); }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .clipList { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  .clipTag { font-size:11px; padding:3px 10px; border-radius:10px; border:1px solid var(--line); color:var(--dim); cursor:pointer; }
+  .clipTag.PASS { color:var(--ok); border-color:#2f4a38; }
+  .clipTag.FLAG { color:var(--warn); border-color:#5a4525; }
+  .clipTag.missing { opacity:.5; }
+  .clipTag.current { outline:2px solid var(--accent); }
+  .personaCard { border:1px solid var(--line); border-radius:8px; padding:12px; margin-top:8px; }
+  .spin { display:inline-block; width:14px; height:14px; border:2px solid var(--dim); border-top-color:var(--accent); border-radius:50%; animation:rot .8s linear infinite; vertical-align:-2px; margin-right:6px; }
+  @keyframes rot { to { transform:rotate(360deg); } }
+  .hint { color:var(--dim); font-size:12px; margin-top:6px; }
+  audio { width:100%; margin-top:10px; }
+  .nav { display:flex; justify-content:space-between; margin-top:22px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>VOLCANO <span>STUDIOS</span> · Voice Cloning Studio</h1>
+  <div id="steps"></div>
+</header>
+<main id="main"></main>
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+async function post(ep, payload) {
+  const r = await fetch("/api/voicestudio/" + ep, { method:"POST",
+    headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || j.message || r.status);
+  return j;
+}
+
+const STEPS = ["Welcome","First Take","Listen & Assess","Full Session","Build & Preview","Personas & SFX","Publish"];
+let S = { step:0, session:null, speaker:"", prompts:[], sfxPrompts:[], state:null,
+          rec:{ mediaRecorder:null, chunks:[], stream:null, active:false },
+          currentPrompt:null, lastBlobUrl:null };
+
+/* ---------------- recording plumbing ---------------- */
+async function startRec() {
+  const stream = await navigator.mediaDevices.getUserMedia({ audio:{
+    echoCancellation:false, noiseSuppression:false, autoGainControl:false } });
+  S.rec.stream = stream; S.rec.chunks = [];
+  S.rec.mediaRecorder = new MediaRecorder(stream);
+  S.rec.mediaRecorder.ondataavailable = e => S.rec.chunks.push(e.data);
+  S.rec.mediaRecorder.start(); S.rec.active = true;
+}
+function stopRec() {
+  return new Promise(resolve => {
+    S.rec.mediaRecorder.onstop = () => {
+      S.rec.stream.getTracks().forEach(t => t.stop());
+      S.rec.active = false;
+      resolve(new Blob(S.rec.chunks, { type: S.rec.mediaRecorder.mimeType }));
+    };
+    S.rec.mediaRecorder.stop();
+  });
+}
+function blobToDataURL(blob) {
+  return new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(blob); });
+}
+async function recordToggle(btn, onDone) {
+  if (!S.rec.active) {
+    await startRec();
+    btn.classList.add("recording"); btn.textContent = "■";
+  } else {
+    btn.disabled = true;
+    const blob = await stopRec();
+    btn.classList.remove("recording"); btn.textContent = "●"; btn.disabled = false;
+    if (S.lastBlobUrl) URL.revokeObjectURL(S.lastBlobUrl);
+    S.lastBlobUrl = URL.createObjectURL(blob);
+    await onDone(blob);
+  }
+}
+
+/* ---------------- step rendering ---------------- */
+function renderSteps() {
+  $("#steps").innerHTML = STEPS.map((n,i) =>
+    `<span class="stepDot ${i===S.step?"active":(i<S.step?"done":"")}" data-i="${i}">${i+1}. ${n}</span>`).join("");
+  document.querySelectorAll(".stepDot").forEach(el =>
+    el.addEventListener("click", () => { if (S.session || el.dataset.i==0) { S.step = +el.dataset.i; render(); } }));
+}
+function nav(backOk=true, nextOk=true, nextLabel="Continue") {
+  return `<div class="nav">
+    <button class="ghost" id="backBtn" ${S.step===0||!backOk?"disabled":""}>Back</button>
+    <button id="nextBtn" ${nextOk?"":"disabled"}>${nextLabel}</button></div>`;
+}
+function wireNav(onNext) {
+  const b = $("#backBtn"), n = $("#nextBtn");
+  if (b) b.addEventListener("click", () => { S.step--; render(); });
+  if (n) n.addEventListener("click", onNext || (() => { S.step++; render(); }));
+}
+
+/* Step 0: welcome + identity + consent-to-record */
+function step0() {
+  $("#main").innerHTML = `
+    <h2>Clone your voice. Own every version of it.</h2>
+    <p class="lead">Seven steps from a single recorded passage to a published, castable voice —
+      with character personas and your own vocal sound-effects bank along the way.</p>
+    <div class="card">
+      <label>Your name (becomes the voice listing name)</label>
+      <input type="text" id="speakerName" value="${esc(S.speaker)}" placeholder="e.g. Tim Escolopio">
+      <p class="hint">Recording happens in your browser. Turn OFF any mic "enhancement" in your OS —
+        noise suppression smears the very detail the clone needs. Find the quietest room you have.</p>
+    </div>${nav(false, true, "Start")}`;
+  wireNav(async () => {
+    const name = $("#speakerName").value.trim();
+    if (!name) return;
+    S.speaker = name;
+    const j = await post("start", { name, speaker:name });
+    S.session = j.state.session; S.state = j.state; S.prompts = j.prompts; S.sfxPrompts = j.sfx_prompts;
+    S.step = 1; render();
+  });
+}
+
+/* Step 1: room tone + first passage */
+function step1() {
+  const first = S.prompts.find(p => p.prompt_id === "B01");
+  $("#main").innerHTML = `
+    <h2>First take</h2>
+    <p class="lead">Two quick recordings: ten seconds of silence (so we can measure your room),
+      then one short passage.</p>
+    <div class="card"><h3>1 · Room tone</h3>
+      <p>Press record, sit still and silent for ~10 seconds, press stop.</p>
+      <div class="row"><button class="recBtn" id="rtBtn">●</button><span id="rtStatus" class="hint">${S.state.roomtone_dbfs != null ? "measured: " + S.state.roomtone_dbfs + " dBFS ✓" : "not recorded yet"}</span></div>
+      <div id="rtVerdict"></div></div>
+    <div class="card"><h3>2 · Your first passage</h3>
+      <div class="promptText">${esc(first.text)}</div>
+      <p class="hint">Read at a relaxed storytelling pace, ~15–20 cm from the mic.</p>
+      <div class="row"><button class="recBtn" id="p1Btn">●</button><span class="hint">record / stop</span></div>
+      <audio id="p1Audio" controls style="display:none"></audio>
+      <div id="p1Verdict"></div></div>
+    ${nav(true, !!(S.state.clips && S.state.clips.B01 && S.state.clips.B01.verdict !== "REJECT"))}`;
+  $("#rtBtn").addEventListener("click", e => recordToggle(e.target, async blob => {
+    $("#rtStatus").innerHTML = '<span class="spin"></span>measuring…';
+    const j = await post("record", { session:S.session, prompt_id:"roomtone", kind:"roomtone", data: await blobToDataURL(blob) });
+    S.state.roomtone_dbfs = j.noise_floor_dbfs;
+    $("#rtStatus").textContent = "measured: " + j.noise_floor_dbfs + " dBFS";
+    $("#rtVerdict").innerHTML = j.problems && j.problems.length ? `<div class="verdict FLAG">${esc(j.problems[0])}</div>` : `<div class="verdict PASS">Nice and quiet.</div>`;
+  }));
+  $("#p1Btn").addEventListener("click", e => recordToggle(e.target, async blob => {
+    const audio = $("#p1Audio"); audio.src = S.lastBlobUrl; audio.style.display = "block";
+    $("#p1Verdict").innerHTML = '<span class="spin"></span>analyzing…';
+    const j = await post("record", { session:S.session, prompt_id:"B01", kind:"prompt", data: await blobToDataURL(blob) });
+    S.state.clips = S.state.clips || {}; S.state.clips.B01 = j;
+    $("#p1Verdict").innerHTML = verdictHtml(j);
+    $("#nextBtn").disabled = j.verdict === "REJECT";
+  }));
+  wireNav();
+}
+function verdictHtml(j) {
+  const nums = `duration ${j.duration_s}s · level ${j.rms_dbfs} dBFS` + (j.snr_db != null ? ` · SNR ${j.snr_db} dB` : "");
+  if (j.verdict === "PASS") return `<div class="verdict PASS">✓ Great take — ${nums}</div>`;
+  if (j.verdict === "FLAG") return `<div class="verdict FLAG">Usable, but: ${esc((j.problems||[]).join("; ") || "borderline quality")} — ${nums}. Re-record if you can.</div>`;
+  return `<div class="verdict REJECT">✗ ${esc((j.problems||[]).join("; "))} — ${nums}. Please re-record.</div>`;
+}
+
+/* Step 2: listen + questionnaire */
+function step2() {
+  const qa = S.state.questionnaire || {};
+  $("#main").innerHTML = `
+    <h2>Listen, then tell us what you hear</h2>
+    <p class="lead">Play your take back. The measurements are done by machine — these questions capture
+      what only you can say. They become your marketplace listing.</p>
+    <div class="card"><h3>Your take</h3>
+      ${S.lastBlobUrl ? `<audio controls src="${S.lastBlobUrl}"></audio>` : `<p class="hint">(previous session — recording stored on server)</p>`}</div>
+    <div class="card"><h3>About this voice</h3>
+      <div class="grid">
+        <div><label>Sounds like age</label><select id="qAge">
+          ${["","young adult","30s-40s","50s-60s","elderly"].map(v => `<option ${qa.age_range===v?"selected":""}>${v}</option>`).join("")}</select></div>
+        <div><label>Reads as</label><select id="qGender">
+          ${["","male","female","androgynous"].map(v => `<option ${qa.gender===v?"selected":""}>${v}</option>`).join("")}</select></div>
+        <div><label>Accent</label><input type="text" id="qAccent" value="${esc(qa.accent||"")}" placeholder="e.g. American Midwest, RP British"></div>
+        <div><label>Best suited for</label><select id="qRegister">
+          ${["","audiobook narration","character acting","announcer/trailer","conversational"].map(v => `<option ${qa.register===v?"selected":""}>${v}</option>`).join("")}</select></div>
+      </div>
+      <label>Three words for the tone (e.g. "warm, gravelly, patient")</label>
+      <input type="text" id="qTone" value="${esc(qa.tone_words||"")}">
+      <label>Anything the recording doesn't capture? (head cold today, can go much deeper, etc.)</label>
+      <textarea id="qNotes">${esc(qa.notes||"")}</textarea>
+    </div>${nav()}`;
+  wireNav(async () => {
+    const answers = { age_range:$("#qAge").value, gender:$("#qGender").value, accent:$("#qAccent").value.trim(),
+                      register:$("#qRegister").value, tone_words:$("#qTone").value.trim(), notes:$("#qNotes").value.trim() };
+    const j = await post("questionnaire", { session:S.session, answers });
+    S.state.questionnaire = answers; S.state.listing_description_draft = j.description_draft;
+    S.step = 3; render();
+  });
+}
+
+/* Step 3: full guided session */
+function step3() {
+  const clips = S.state.clips || {};
+  const remaining = S.prompts.filter(p => !clips[p.prompt_id] || clips[p.prompt_id].verdict === "REJECT");
+  S.currentPrompt = S.currentPrompt && remaining.find(p => p.prompt_id === S.currentPrompt.prompt_id)
+    ? S.currentPrompt : (remaining[0] || null);
+  const doneCount = S.prompts.length - remaining.length;
+  $("#main").innerHTML = `
+    <h2>The full session</h2>
+    <p class="lead">${doneCount}/${S.prompts.length} prompts recorded. Each take is graded instantly —
+      re-record any tag by clicking it. You can stop anytime and come back; nothing is lost.</p>
+    <div class="card">
+      <div class="clipList">${S.prompts.map(p => {
+        const c = clips[p.prompt_id];
+        const cls = c ? (c.verdict === "REJECT" ? "missing" : c.verdict) : "missing";
+        const cur = S.currentPrompt && p.prompt_id === S.currentPrompt.prompt_id ? "current" : "";
+        return `<span class="clipTag ${cls} ${cur}" data-pid="${p.prompt_id}">${p.prompt_id}</span>`;
+      }).join("")}</div></div>
+    ${S.currentPrompt ? `
+    <div class="card"><h3>${esc(S.currentPrompt.prompt_id)}${S.currentPrompt.emotion !== "Neutral" ? " — read it as: " + esc(S.currentPrompt.emotion) : ""}</h3>
+      <div class="promptText">${esc(S.currentPrompt.text)}</div>
+      <div class="row"><button class="recBtn" id="sessBtn">●</button>
+        <audio id="sessAudio" controls style="display:none"></audio></div>
+      <div id="sessVerdict"></div></div>`
+    : `<div class="card"><div class="verdict PASS">✓ Every prompt recorded. Continue to build your clone.</div></div>`}
+    ${nav(true, doneCount >= 6, remaining.length ? "Skip ahead (min 6 clips)" : "Continue")}`;
+  document.querySelectorAll(".clipTag").forEach(el => el.addEventListener("click", () => {
+    S.currentPrompt = S.prompts.find(p => p.prompt_id === el.dataset.pid); render();
+  }));
+  const btn = $("#sessBtn");
+  if (btn) btn.addEventListener("click", e => recordToggle(e.target, async blob => {
+    const audio = $("#sessAudio"); audio.src = S.lastBlobUrl; audio.style.display = "block";
+    $("#sessVerdict").innerHTML = '<span class="spin"></span>analyzing…';
+    const j = await post("record", { session:S.session, prompt_id:S.currentPrompt.prompt_id, kind:"prompt", data: await blobToDataURL(blob) });
+    S.state.clips = S.state.clips || {}; S.state.clips[S.currentPrompt.prompt_id] = j;
+    $("#sessVerdict").innerHTML = verdictHtml(j);
+    if (j.verdict !== "REJECT") setTimeout(() => { S.currentPrompt = null; render(); }, 1200);
+  }));
+  wireNav();
+}
+
+/* Step 4: build + clone preview */
+function step4() {
+  $("#main").innerHTML = `
+    <h2>Build your clone — then hear it</h2>
+    <p class="lead">We assemble your best takes into the cloning reference, then your clone reads
+      anything you type. This is the moment of truth.</p>
+    <div class="card"><h3>Build</h3>
+      <div class="row"><button id="buildBtn">Build reference set</button><span id="buildStatus" class="hint">${S.state.built ? "built ✓" : "not built yet"}</span></div></div>
+    <div class="card"><h3>Hear your clone</h3>
+      <label>What should it say?</label>
+      <input type="text" id="prevText" value="Once upon a time, there were four little rabbits — and one of them sounded exactly like me.">
+      <div class="row" style="margin-top:10px"><button id="prevBtn" ${S.state.built?"":"disabled"}>Synthesize</button>
+        <span id="prevStatus" class="hint">CPU synthesis takes ~30–60 seconds</span></div>
+      <audio id="prevAudio" controls style="display:none"></audio></div>
+    ${nav()}`;
+  $("#buildBtn").addEventListener("click", async e => {
+    e.target.disabled = true;
+    $("#buildStatus").innerHTML = '<span class="spin"></span>building…';
+    const j = await post("build", { session:S.session });
+    S.state.built = j.built;
+    $("#buildStatus").textContent = j.built
+      ? `built ✓ (${j.accepted_clips} clips, ${j.emotion_refs.length} emotion refs)`
+      : (j.error || "no usable clips yet — record more in step 4");
+    $("#prevBtn").disabled = !j.built; e.target.disabled = false;
+  });
+  $("#prevBtn").addEventListener("click", async e => {
+    e.target.disabled = true;
+    $("#prevStatus").innerHTML = '<span class="spin"></span>synthesizing with your voice…';
+    try {
+      const j = await post("preview", { session:S.session, text:$("#prevText").value });
+      const audio = $("#prevAudio");
+      audio.src = "/api/console/audio?file=" + encodeURIComponent(j.wav);
+      audio.style.display = "block"; audio.play();
+      $("#prevStatus").textContent = "done — compare it with your own take from step 2";
+    } catch (err) { $("#prevStatus").textContent = "failed: " + err.message; }
+    e.target.disabled = false;
+  });
+  wireNav();
+}
+
+/* Step 5: personas + vocal SFX */
+function step5() {
+  const personas = S.state.personas || [];
+  $("#main").innerHTML = `
+    <h2>Character personas & your vocal SFX bank</h2>
+    <p class="lead">One voice, many characters: save named variants with pitch and pace shifts,
+      and record the sounds only a human can make.</p>
+    <div class="card"><h3>New persona</h3>
+      <div class="grid">
+        <div><label>Name</label><input type="text" id="perLabel" placeholder="e.g. The Old Gatekeeper"></div>
+        <div><label>Description</label><input type="text" id="perDesc" placeholder="slow, ancient, suspicious"></div>
+        <div><label>Pitch shift (semitones, −6 to +6)</label><input type="number" id="perPitch" value="0" min="-6" max="6" step="0.5"></div>
+        <div><label>Speed (0.6–1.6×)</label><input type="number" id="perSpeed" value="1.0" min="0.6" max="1.6" step="0.05"></div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button id="perPrev" ${S.state.built?"":"disabled"}>Preview persona</button>
+        <button class="ghost" id="perSave">Save persona</button>
+        <span id="perStatus" class="hint"></span></div>
+      <audio id="perAudio" controls style="display:none"></audio>
+      ${personas.map(p => `<div class="personaCard"><b>${esc(p.label)}</b>
+        <span class="hint">pitch ${p.pitch>0?"+":""}${p.pitch} st · ${p.speed}× — ${esc(p.description)}</span></div>`).join("")}
+    </div>
+    <div class="card"><h3>Vocal SFX bank</h3>
+      <p class="hint">These become production assets — the sparrows imploring Peter were exactly this kind of performance.</p>
+      <div class="grid">${S.sfxPrompts.map(p => {
+        const has = S.state.sfx && S.state.sfx[p.tag];
+        return `<div class="row" style="border:1px solid var(--line); border-radius:8px; padding:10px">
+          <button class="recBtn" style="width:44px;height:44px;font-size:15px" data-sfx="${esc(p.tag)}">●</button>
+          <div style="flex:1"><b>${esc(p.tag)}</b> ${has ? '<span style="color:var(--ok)">✓ ' + has.duration_s + 's</span>' : ""}
+            <div class="hint">${esc(p.text)}</div></div></div>`;
+      }).join("")}</div>
+      <div id="sfxStatus"></div></div>
+    ${nav()}`;
+  $("#perPrev").addEventListener("click", async e => {
+    e.target.disabled = true;
+    $("#perStatus").innerHTML = '<span class="spin"></span>synthesizing persona…';
+    try {
+      const j = await post("preview", { session:S.session, text:"Halt. Who approaches my gate at this hour of the night?",
+        pitch:+$("#perPitch").value, speed:+$("#perSpeed").value });
+      const a = $("#perAudio"); a.src = "/api/console/audio?file=" + encodeURIComponent(j.wav); a.style.display="block"; a.play();
+      $("#perStatus").textContent = "";
+    } catch (err) { $("#perStatus").textContent = "failed: " + err.message; }
+    e.target.disabled = false;
+  });
+  $("#perSave").addEventListener("click", async () => {
+    const j = await post("persona", { session:S.session, label:$("#perLabel").value,
+      description:$("#perDesc").value, pitch:+$("#perPitch").value, speed:+$("#perSpeed").value });
+    if (j.personas) { S.state.personas = j.personas; render(); }
+  });
+  document.querySelectorAll("[data-sfx]").forEach(btn => btn.addEventListener("click", e =>
+    recordToggle(e.target, async blob => {
+      $("#sfxStatus").innerHTML = '<span class="spin"></span>saving…';
+      const j = await post("record", { session:S.session, prompt_id:btn.dataset.sfx, kind:"sfx", data: await blobToDataURL(blob) });
+      S.state.sfx = S.state.sfx || {};
+      if (j.verdict === "PASS") S.state.sfx[btn.dataset.sfx] = j;
+      $("#sfxStatus").innerHTML = j.verdict === "PASS" ? "" : `<div class="verdict REJECT">${esc((j.problems||[]).join("; "))}</div>`;
+      render();
+    })));
+  wireNav();
+}
+
+/* Step 6: publish */
+function step6() {
+  const draft = S.state.listing_description_draft || "";
+  $("#main").innerHTML = `
+    <h2>Publish to the marketplace</h2>
+    <p class="lead">Your voice becomes a searchable, castable listing. You keep ownership;
+      every license is recorded in the ledger with who, what, and what for.</p>
+    <div class="card">
+      <label>Listing description (drafted from your questionnaire — edit freely)</label>
+      <textarea id="pubDesc">${esc(draft)}</textarea>
+      <div class="grid" style="margin-top:8px">
+        <div><label>Price (USD, 0 = free)</label><input type="number" id="pubPrice" value="0" min="0" step="0.5"></div>
+        <div><label>Seller name</label><input type="text" id="pubSeller" value="${esc(S.speaker)}"></div>
+      </div>
+      <label style="margin-top:14px"><input type="checkbox" id="pubConsent" style="width:auto;margin-right:8px">
+        I consent to license this voice through the Volcano Studios marketplace. I recorded it myself and it is mine to license.</label>
+      <div class="row" style="margin-top:14px"><button id="pubBtn" ${S.state.built?"":"disabled"}>Publish voice</button>
+        <span id="pubStatus" class="hint">${S.state.published ? "already published ✓" : (S.state.built ? "" : "build your clone first (step 5)")}</span></div>
+    </div>`;
+  $("#pubBtn").addEventListener("click", async e => {
+    if (!$("#pubConsent").checked) { $("#pubStatus").textContent = "consent checkbox is required"; return; }
+    e.target.disabled = true;
+    $("#pubStatus").innerHTML = '<span class="spin"></span>publishing…';
+    try {
+      const j = await post("publish", { session:S.session, seller:$("#pubSeller").value,
+        description:$("#pubDesc").value, price:+$("#pubPrice").value, consent:true });
+      S.state.published = true;
+      $("#pubStatus").textContent = "✓ live in the marketplace: " + (j.listing.voice_name || S.speaker);
+    } catch (err) { $("#pubStatus").textContent = "failed: " + err.message; e.target.disabled = false; }
+  });
+}
+
+const RENDERERS = [step0, step1, step2, step3, step4, step5, step6];
+function render() { renderSteps(); RENDERERS[S.step](); window.scrollTo(0, 0); }
+render();
+</script>
+</body>
+</html>

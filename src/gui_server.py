@@ -11,7 +11,7 @@ import sys
 import json
 import logging
 import threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import urllib.parse
 
 # Ensure the root project directory is in the sys.path for absolute modular imports
@@ -68,7 +68,7 @@ PIPELINE_STATUS = {
     "qc_report": None
 }
 
-def bg_run_pipeline(filename: str, tier: int = 1):
+def bg_run_pipeline(filename: str, tier: int = 1, user_tier: str = "free"):
     """
     Executes the FirespeakerPipeline full run on a background thread.
     Updates the global PIPELINE_STATUS object for real-time progress polling.
@@ -78,7 +78,7 @@ def bg_run_pipeline(filename: str, tier: int = 1):
         from src.main import FirespeakerPipeline
         filepath = os.path.join("data/corpus", filename)
         
-        logger.info(f"[BG Compiler] Initializing pipeline run for {filename} (Tier {tier})...")
+        logger.info(f"[BG Compiler] Initializing pipeline run for {filename} (Tier {tier}, User Tier {user_tier})...")
         PIPELINE_STATUS["status"] = "running"
         PIPELINE_STATUS["step"] = "Preparing workspace & loading character drawers..."
         PIPELINE_STATUS["progress"] = 15
@@ -94,7 +94,7 @@ def bg_run_pipeline(filename: str, tier: int = 1):
         PIPELINE_STATUS["progress"] = 75
         
         output_master = "scratch/pipeline_workspace/output_master.wav"
-        success = pipeline.run_full_pipeline(filepath, output_master)
+        success = pipeline.run_full_pipeline(filepath, output_master, user_tier=user_tier)
         
         if success:
             logger.info("[BG Compiler] Performing mathematical ACX compliant QC check...")
@@ -135,6 +135,16 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
         
         if path == "/" or path == "/index.html":
             self.serve_static_file("src/static/index.html", "text/html")
+        elif path == "/console":
+            self.serve_static_file("src/static/console.html", "text/html")
+        elif path == "/voicestudio":
+            self.serve_static_file("src/static/voicestudio.html", "text/html")
+        elif path.startswith("/api/voicestudio/"):
+            self.handle_voicestudio(path, parsed_url.query, body=None)
+        elif path.startswith("/api/console/"):
+            self.handle_get_console(path, parsed_url.query)
+        elif path.startswith("/api/marketplace/"):
+            self.handle_marketplace(path, parsed_url.query, body=None)
         elif path == "/api/books":
             self.handle_get_books()
         elif path == "/api/cast":
@@ -143,14 +153,245 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
             self.handle_get_pipeline_status()
         elif path == "/api/logs":
             self.handle_get_logs()
+        elif path == "/api/download":
+            self.handle_get_download()
+        elif path == "/api/preview_voice":
+            self.handle_get_preview_voice(parsed_url.query)
         else:
             self.send_error(404, "File not found")
+
+    _marketplace = None
+
+    @classmethod
+    def _get_marketplace(cls):
+        """Lazy singleton: the local Qdrant store allows one client per process,
+        so the server holds a single instance for all marketplace requests."""
+        if cls._marketplace is None:
+            from src.voice_marketplace import VoiceMarketplace
+            cls._marketplace = VoiceMarketplace()
+        return cls._marketplace
+
+    def handle_marketplace(self, path, query_string, body=None):
+        """Voice Marketplace REST surface over src/voice_marketplace.py.
+        GET  /api/marketplace/listings                    -- browse all
+        GET  /api/marketplace/search?q=...&limit=5        -- semantic search
+        POST /api/marketplace/upload_sample {filename, data: dataURL} -> {path}
+        POST /api/marketplace/onboard {seller, name, samples[], description, price, consent}
+        POST /api/marketplace/purchase {voice_id, buyer, purpose}
+        POST /api/marketplace/cast {character, description, buyer}
+        """
+        try:
+            params = urllib.parse.parse_qs(query_string or "")
+            q = lambda k, d="": (params.get(k) or [d])[0]
+            mp = self._get_marketplace()
+            if path == "/api/marketplace/listings":
+                payload = {"listings": mp.list_all()}
+            elif path == "/api/marketplace/search":
+                if not q("q"):
+                    self.send_json_error(400, "Missing query parameter q")
+                    return
+                payload = {"results": mp.search_marketplace(q("q"), limit=int(q("limit", "5")))}
+            elif path == "/api/marketplace/upload_sample" and body is not None:
+                filename = os.path.basename(body.get("filename") or "")
+                data_url = body.get("data") or ""
+                if not filename or "," not in data_url:
+                    self.send_json_error(400, "Need filename and data (dataURL)")
+                    return
+                import base64
+                raw = base64.b64decode(data_url.split(",", 1)[1])
+                updir = "data/voice_marketplace/uploads"
+                os.makedirs(updir, exist_ok=True)
+                dest = os.path.join(updir, filename)
+                with open(dest, "wb") as f:
+                    f.write(raw)
+                payload = {"path": dest, "bytes": len(raw)}
+            elif path == "/api/marketplace/onboard" and body is not None:
+                listing = mp.onboard_voice(
+                    seller_name=body.get("seller", ""),
+                    voice_name=body.get("name", ""),
+                    sample_wav_paths=body.get("samples", []),
+                    description=body.get("description", ""),
+                    price_usd=float(body.get("price", 0.0)),
+                    consent_confirmed=bool(body.get("consent", False)),
+                )
+                payload = {"listing": listing}
+            elif path == "/api/marketplace/purchase" and body is not None:
+                payload = {"license": mp.purchase_voice(
+                    voice_id=body.get("voice_id", ""),
+                    buyer=body.get("buyer", "local"),
+                    purpose=body.get("purpose", ""),
+                )}
+            elif path == "/api/marketplace/cast" and body is not None:
+                result = mp.cast_character(
+                    character_name=body.get("character", ""),
+                    character_description=body.get("description", ""),
+                    buyer=body.get("buyer", "local"),
+                    purpose=body.get("purpose", "audiobook production"),
+                )
+                if result is None:
+                    self.send_json_error(404, "No suitable voice found for that description")
+                    return
+                payload = {"cast": result}
+            else:
+                self.send_json_error(404, "Unknown marketplace endpoint")
+                return
+            resp = json.dumps(payload, default=str).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(resp)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(resp)
+        except ValueError as e:
+            self.send_json_error(400, str(e))
+        except Exception as e:
+            logger.error(f"Marketplace endpoint error ({path}): {e}")
+            self.send_json_error(500, f"Marketplace error: {e}")
+
+    def handle_voicestudio(self, path, query_string, body=None):
+        """Voice Cloning Studio wizard REST surface over src/voice_studio.py.
+        POST /api/voicestudio/start     {name, speaker}
+        POST /api/voicestudio/record    {session, prompt_id, kind, data: dataURL}
+        POST /api/voicestudio/questionnaire {session, answers}
+        POST /api/voicestudio/build     {session}
+        POST /api/voicestudio/preview   {session, text, pitch, speed}   (slow: XTTS)
+        POST /api/voicestudio/persona   {session, label, description, pitch, speed}
+        POST /api/voicestudio/publish   {session, seller, description, price, consent}
+        GET  /api/voicestudio/session?name=...
+        """
+        from src import voice_studio
+        try:
+            body = body or {}
+            if path == "/api/voicestudio/session":
+                params = urllib.parse.parse_qs(query_string or "")
+                name = (params.get("name") or [""])[0]
+                payload = voice_studio.start_session(name, name)
+            elif path == "/api/voicestudio/start":
+                payload = voice_studio.start_session(body.get("name", ""), body.get("speaker", ""))
+            elif path == "/api/voicestudio/record":
+                payload = voice_studio.save_recording(
+                    body.get("session", ""), body.get("prompt_id", ""),
+                    body.get("data", ""), kind=body.get("kind", "prompt"))
+            elif path == "/api/voicestudio/questionnaire":
+                payload = voice_studio.save_questionnaire(body.get("session", ""), body.get("answers", {}))
+            elif path == "/api/voicestudio/build":
+                payload = voice_studio.build(body.get("session", ""))
+            elif path == "/api/voicestudio/preview":
+                payload = voice_studio.preview(
+                    body.get("session", ""), body.get("text", ""),
+                    pitch=float(body.get("pitch", 0.0)), speed=float(body.get("speed", 1.0)))
+            elif path == "/api/voicestudio/persona":
+                payload = voice_studio.save_persona(
+                    body.get("session", ""), body.get("label", ""), body.get("description", ""),
+                    pitch=float(body.get("pitch", 0.0)), speed=float(body.get("speed", 1.0)))
+            elif path == "/api/voicestudio/publish":
+                payload = voice_studio.publish(
+                    body.get("session", ""), body.get("seller", ""), body.get("description", ""),
+                    float(body.get("price", 0.0)), bool(body.get("consent", False)),
+                    self._get_marketplace())
+            else:
+                self.send_json_error(404, "Unknown voicestudio endpoint")
+                return
+            if payload is None:
+                self.send_json_error(400, "Invalid session or payload")
+                return
+            resp = json.dumps(payload, default=str).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(resp)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(resp)
+        except ValueError as e:
+            self.send_json_error(400, str(e))
+        except Exception as e:
+            logger.error(f"VoiceStudio endpoint error ({path}): {e}")
+            self.send_json_error(500, f"VoiceStudio error: {e}")
+
+    def handle_get_console(self, path, query_string):
+        """Review Console (Phase 1, read-only): thin dispatch over console_api."""
+        from src import console_api
+        try:
+            params = urllib.parse.parse_qs(query_string or "")
+            q = lambda k: (params.get(k) or [""])[0]
+            if path == "/api/console/books":
+                payload = console_api.list_books()
+            elif path == "/api/console/book":
+                payload = console_api.book_tree(q("name"))
+            elif path == "/api/console/scene":
+                payload = console_api.scene_detail(q("book"), q("scene"))
+            elif path == "/api/console/progress":
+                payload = console_api.progress()
+            elif path == "/api/console/audio":
+                wav = console_api.resolve_audio(q("file"))
+                if not wav:
+                    self.send_json_error(404, "Audio not found or not allowed")
+                    return
+                with open(wav, "rb") as f:
+                    content = f.read()
+                self.send_response(200)
+                self.send_header("Content-Type", "audio/wav")
+                self.send_header("Content-Length", str(len(content)))
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(content)
+                return
+            else:
+                self.send_json_error(404, "Unknown console endpoint")
+                return
+            if payload is None:
+                self.send_json_error(404, "Not found")
+                return
+            body = json.dumps(payload, default=str).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
+        except Exception as e:
+            logger.error(f"Console endpoint error ({path}): {e}")
+            self.send_json_error(500, f"Console error: {e}")
+
+    def handle_get_download(self):
+        try:
+            file_path = "scratch/pipeline_workspace/output_master.wav"
+            if not os.path.exists(file_path):
+                os.makedirs("scratch/pipeline_workspace", exist_ok=True)
+                with open(file_path, "wb") as f:
+                    f.write(b'RIFF\x24\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x02\x00\x44\xac\x00\x00\x10\xb1\x02\x00\x04\x00\x10\x00data\x00\x00\x00\x00')
             
+            with open(file_path, "rb") as f:
+                content = f.read()
+                
+            self.send_response(200)
+            self.send_header("Content-Type", "audio/wav")
+            self.send_header("Content-Disposition", "attachment; filename=audiobook_mastered.wav")
+            self.send_header("Content-Length", str(len(content)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(content)
+        except Exception as e:
+            logger.error(f"Error serving audio download: {e}")
+            self.send_error(500, f"Server error: {e}")
+
     def do_POST(self):
         parsed_url = urllib.parse.urlparse(self.path)
         path = parsed_url.path
         
-        if path == "/api/analyze":
+        if path.startswith("/api/marketplace/") or path.startswith("/api/voicestudio/"):
+            try:
+                content_length = int(self.headers.get('Content-Length') or 0)
+                body = json.loads(self.rfile.read(content_length).decode('utf-8')) if content_length else {}
+            except Exception:
+                self.send_json_error(400, "Invalid JSON body")
+                return
+            if path.startswith("/api/marketplace/"):
+                self.handle_marketplace(path, parsed_url.query, body=body)
+            else:
+                self.handle_voicestudio(path, parsed_url.query, body=body)
+        elif path == "/api/analyze":
             self.handle_post_analyze()
         elif path == "/api/upload":
             self.handle_post_upload()
@@ -160,12 +401,18 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
             self.handle_post_update_character()
         elif path == "/api/process_manuscript":
             self.handle_post_process_manuscript()
+        elif path == "/api/process_scenes_async":
+            self.handle_post_process_scenes_async()
         elif path == "/api/override_line_speaker":
             self.handle_post_override_line_speaker()
         elif path == "/api/verify_line":
             self.handle_post_verify_line()
         elif path == "/api/verify_aspect":
             self.handle_post_verify_aspect()
+        elif path == "/api/save_hierarchy":
+            self.handle_post_save_hierarchy()
+        elif path == "/api/telemetry/correction":
+            self.handle_post_telemetry_correction()
         else:
             self.send_error(404, "Endpoint not found")
 
@@ -214,6 +461,109 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
             self.wfile.write(response)
         except Exception as e:
             logger.error(f"Error listing books: {e}")
+            self.send_json_error(500, str(e))
+
+    def handle_get_preview_voice(self, query_string):
+        try:
+            params = urllib.parse.parse_qs(query_string)
+            voice_val = params.get("voice", [""])[0]
+            text = params.get("text", [""])[0]
+            
+            if not text:
+                text = "Volcano Works is preparing your story preview."
+                
+            from src.voice_synthesizer import VoiceSynthesizer
+            from src.spatial_memory import MemPalace
+            
+            # Ensure directories exist
+            os.makedirs("data/mempalace", exist_ok=True)
+            os.makedirs("scratch", exist_ok=True)
+            
+            palace = MemPalace(db_dir="data/mempalace")
+            
+            # Register characters if they don't exist
+            if not palace.get_character_drawer("Arthur"):
+                palace.register_character("Arthur", "data/voice_references/narrator_mono.wav", speed=1.0, pitch=-0.9)
+            if not palace.get_character_drawer("Emily"):
+                palace.register_character("Emily", "data/voice_references/narrator_mono.wav", speed=1.05, pitch=3.86)
+            if not palace.get_character_drawer("Michael"):
+                palace.register_character("Michael", "data/voice_references/narrator_mono.wav", speed=0.9, pitch=-3.86)
+            if not palace.get_character_drawer("Narrator"):
+                palace.register_character("Narrator", "data/voice_references/narrator_mono.wav", speed=1.0, pitch=0.0)
+            if "Neural" in voice_val and not palace.get_character_drawer(voice_val):
+                palace.register_character(voice_val, voice_val, speed=1.0, pitch=0.0)
+                
+            # Map selected voice to character
+            char_name = "Narrator"
+            if voice_val == "preset_narrator_1":
+                char_name = "Arthur"
+            elif voice_val == "preset_narrator_2":
+                char_name = "Emily"
+            elif voice_val == "preset_narrator_3":
+                char_name = "Michael"
+            elif voice_val == "cloned_voice":
+                char_name = "Narrator"
+            elif "Neural" in voice_val:
+                char_name = voice_val
+                
+            drawer = palace.get_character_drawer(char_name)
+            palace.close()
+            
+            # Prioritize query parameters if present (e.g. from Cast Manager preview sliders)
+            speed_mod = 1.0
+            pitch_mod = 1.0
+            
+            if "speed" in params:
+                try:
+                    speed_mod = float(params.get("speed")[0])
+                except ValueError:
+                    speed_mod = 1.0
+            elif drawer:
+                speed_mod = drawer["modulation_config"].get("speed", 1.0)
+                
+            if "pitch" in params:
+                try:
+                    pitch_semitones = float(params.get("pitch")[0])
+                    pitch_mod = 2.0 ** (pitch_semitones / 12.0)
+                except ValueError:
+                    pitch_mod = 1.0
+            elif drawer:
+                pitch_semitones = drawer["modulation_config"].get("pitch", 0.0)
+                pitch_mod = 2.0 ** (pitch_semitones / 12.0)
+            
+            synth = VoiceSynthesizer(mempalace_path="data/mempalace", force_cpu=True)
+            
+            import uuid
+            preview_filename = f"scratch/preview_{uuid.uuid4().hex}.wav"
+            
+            synth.synthesize_line(
+                character_name=char_name,
+                dialogue_text=text,
+                target_emotion="Neutral",
+                output_wav_path=preview_filename,
+                pitch_modifier=pitch_mod,
+                speed_modifier=speed_mod
+            )
+            
+            if os.path.exists(preview_filename):
+                with open(preview_filename, "rb") as f:
+                    content = f.read()
+                
+                try:
+                    os.remove(preview_filename)
+                except Exception:
+                    pass
+                    
+                self.send_response(200)
+                self.send_header("Content-Type", "audio/wav")
+                self.send_header("Content-Length", str(len(content)))
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(content)
+            else:
+                self.send_json_error(500, "Failed to generate preview audio file.")
+        except Exception as e:
+            logger.error(f"Error serving voice preview: {e}", exc_info=True)
             self.send_json_error(500, str(e))
 
     def handle_get_logs(self):
@@ -309,9 +659,39 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
                 self.send_json_error(400, "Missing filename or text parameter")
                 return
                 
+            if text.startswith("data:"):
+                import base64
+                header, encoded = text.split(",", 1)
+                file_bytes = base64.b64decode(encoded)
+                if "wordprocessingml" in header or filename.endswith(".docx"):
+                    import zipfile
+                    import xml.etree.ElementTree as ET
+                    import io
+                    try:
+                        with zipfile.ZipFile(io.BytesIO(file_bytes)) as docx:
+                            xml_content = docx.read('word/document.xml')
+                            root = ET.fromstring(xml_content)
+                            ns = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
+                            paragraphs = []
+                            for para in root.findall('.//w:p', ns):
+                                text_runs = para.findall('.//w:t', ns)
+                                t_text = "".join([t.text for t in text_runs if t.text])
+                                if t_text:
+                                    paragraphs.append(t_text)
+                            text = "\n\n".join(paragraphs)
+                    except Exception as e:
+                        logger.error(f"Docx parsing failed: {e}")
+                        self.send_json_error(400, f"Failed to parse .docx file: {str(e)}")
+                        return
+                else:
+                    try:
+                        text = file_bytes.decode('utf-8')
+                    except Exception:
+                        text = file_bytes.decode('latin-1', errors='ignore')
+
             filename = os.path.basename(filename)
-            if not filename.endswith(".txt"):
-                filename += ".txt"
+            name_part, ext_part = os.path.splitext(filename)
+            filename = name_part + ".txt"
                 
             filepath = os.path.join("data/corpus", filename)
             os.makedirs(os.path.dirname(filepath), exist_ok=True)
@@ -385,29 +765,47 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
             palace.save_confirmed_merge(filename, original_name, canonical_name, is_confirmed, confidence_score)
             palace.close()
             
-            # 2. Invalidate cache files in scratch/
-            cache_base = os.path.splitext(filename)[0]
-            hierarchy_cache = os.path.join("scratch", f"{cache_base}_hierarchy.json")
-            profile_cache = os.path.join("scratch", f"{cache_base}_profile.json")
-            
-            if os.path.exists(hierarchy_cache):
-                os.remove(hierarchy_cache)
-            if os.path.exists(profile_cache):
-                os.remove(profile_cache)
-                
-            logger.info(f"Cache cleared for {filename}. Re-profiling manuscript...")
-            
+            # 2. Modify existing hierarchy cache dynamically to preserve structural scene splits
+            import re
+            base_name = os.path.splitext(filename)[0]
+            slug = re.sub(r'[^a-zA-Z0-9_\-]', '', base_name)
             tier = params.get("tier", 1)
-            # Re-run parsing and profiling under new database rules
-            parser = HierarchicalParser(use_gpu=False, production_tier=int(tier))
+            
+            cache_dir = f"data/processed/{slug}/Tier_{tier}"
+            hierarchy_cache = os.path.join(cache_dir, "hierarchy.json")
+            profile_cache = os.path.join(cache_dir, "profile.json")
+            
+            # Load existing cache hierarchy
+            if os.path.exists(hierarchy_cache):
+                with open(hierarchy_cache, "r", encoding="utf-8") as f:
+                    hierarchy_data = json.load(f)
+            else:
+                parser = HierarchicalParser(use_gpu=False, production_tier=int(tier))
+                hierarchy_data = parser.parse_hierarchy(filepath)
+                
+            # If confirmed, merge original_name into canonical_name in the hierarchy cache
+            if is_confirmed:
+                for part in hierarchy_data.get("parts", []):
+                    for chapter in part.get("chapters", []):
+                        for scene in chapter.get("scenes", []):
+                            for line in scene.get("lines", []):
+                                if line.get("character") == original_name:
+                                    line["character"] = canonical_name
+                                    
+                global_chars = hierarchy_data["metadata"].get("global_characters", [])
+                if original_name in global_chars:
+                    global_chars.remove(original_name)
+                if canonical_name not in global_chars:
+                    global_chars.append(canonical_name)
+                    
+            # Save updated hierarchy cache
+            os.makedirs(cache_dir, exist_ok=True)
+            with open(hierarchy_cache, "w", encoding="utf-8") as f:
+                json.dump(hierarchy_data, f, indent=4)
+                
+            # Re-profile to keep metrics in sync
             profiler = ManuscriptProfiler(use_gpu=False, production_tier=int(tier))
-            
-            hierarchy_data = parser.parse_hierarchy(filepath)
-            profile_data = profiler.profile_book(filepath)
-            
-            # 4. Save new cache
-            os.makedirs("scratch", exist_ok=True)
-            parser.save_index(hierarchy_data, hierarchy_cache)
+            profile_data = profiler.profile_book(filepath, hierarchy_data=hierarchy_data)
             profiler.save_profile(profile_data, profile_cache)
             
             response_data = {
@@ -528,27 +926,60 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
             )
             palace.close()
             
-            # 4. Invalidate parser caches to trigger complete re-profiling pass
-            cache_base = os.path.splitext(filename)[0]
-            hierarchy_cache = os.path.join("scratch", f"{cache_base}_hierarchy.json")
-            profile_cache = os.path.join("scratch", f"{cache_base}_profile.json")
-            
-            if os.path.exists(hierarchy_cache):
-                os.remove(hierarchy_cache)
-            if os.path.exists(profile_cache):
-                os.remove(profile_cache)
-                
+            # 4. Modify existing hierarchy cache dynamically to preserve structural scene splits
+            import re
+            base_name = os.path.splitext(filename)[0]
+            slug = re.sub(r'[^a-zA-Z0-9_\-]', '', base_name)
             tier = params.get("tier", 1)
-            # 5. Re-run parsing under new drawers/merges
-            parser = HierarchicalParser(use_gpu=False, production_tier=int(tier))
+            
+            cache_dir = f"data/processed/{slug}/Tier_{tier}"
+            hierarchy_cache = os.path.join(cache_dir, "hierarchy.json")
+            profile_cache = os.path.join(cache_dir, "profile.json")
+            
+            # Load existing cache hierarchy
+            if os.path.exists(hierarchy_cache):
+                with open(hierarchy_cache, "r", encoding="utf-8") as f:
+                    hierarchy_data = json.load(f)
+            else:
+                parser = HierarchicalParser(use_gpu=False, production_tier=int(tier))
+                hierarchy_data = parser.parse_hierarchy(filepath)
+                
+            # If name changes, apply rename override in the hierarchy cache
+            if new_name != original_name:
+                for part in hierarchy_data.get("parts", []):
+                    for chapter in part.get("chapters", []):
+                        for scene in chapter.get("scenes", []):
+                            for line in scene.get("lines", []):
+                                if line.get("character") == original_name:
+                                    line["character"] = new_name
+                                    
+                global_chars = hierarchy_data["metadata"].get("global_characters", [])
+                if original_name in global_chars:
+                    global_chars.remove(original_name)
+                if new_name not in global_chars:
+                    global_chars.append(new_name)
+
+            # Apply updated voice drawer speed/pitch modifications to all lines for this character
+            pitch_semitones = float(pitch)
+            pitch_mult = 2.0 ** (pitch_semitones / 12.0)
+            for part in hierarchy_data.get("parts", []):
+                for chapter in part.get("chapters", []):
+                    for scene in chapter.get("scenes", []):
+                        for line in scene.get("lines", []):
+                            if line.get("character") == new_name:
+                                if "performance" not in line or not isinstance(line["performance"], dict):
+                                    line["performance"] = {}
+                                line["performance"]["pitch_modifier"] = pitch_mult
+                                line["performance"]["speed_modifier"] = float(speed)
+                    
+            # Save updated hierarchy cache
+            os.makedirs(cache_dir, exist_ok=True)
+            with open(hierarchy_cache, "w", encoding="utf-8") as f:
+                json.dump(hierarchy_data, f, indent=4)
+                
+            # Re-profile to keep metrics in sync
             profiler = ManuscriptProfiler(use_gpu=False, production_tier=int(tier))
-            
-            hierarchy_data = parser.parse_hierarchy(filepath)
-            profile_data = profiler.profile_book(filepath)
-            
-            # 6. Save cache
-            os.makedirs("scratch", exist_ok=True)
-            parser.save_index(hierarchy_data, hierarchy_cache)
+            profile_data = profiler.profile_book(filepath, hierarchy_data=hierarchy_data)
             profiler.save_profile(profile_data, profile_cache)
             
             response_data = {
@@ -584,8 +1015,9 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
                 return
                 
             tier = params.get("tier", 1)
+            user_tier = params.get("user_tier", "free")
             # Trigger pipeline on a background thread
-            thread = threading.Thread(target=bg_run_pipeline, args=(filename, int(tier)))
+            thread = threading.Thread(target=bg_run_pipeline, args=(filename, int(tier), user_tier))
             thread.start()
             
             response = json.dumps({"status": "running"}).encode("utf-8")
@@ -662,6 +1094,20 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
                             if line.get("line_id") == line_id:
                                 line["character"] = new_speaker
                                 line["speaker_locked"] = True
+                                
+                                # Update performance modifiers to match the new speaker drawer defaults
+                                palace_temp = MemPalace()
+                                drawer = palace_temp.get_character_drawer(new_speaker)
+                                palace_temp.close()
+                                if drawer:
+                                    pitch_semitones = float(drawer["modulation_config"].get("pitch", 0.0))
+                                    pitch_mult = 2.0 ** (pitch_semitones / 12.0)
+                                    speed_val = float(drawer["modulation_config"].get("speed", 1.0))
+                                    if "performance" not in line or not isinstance(line["performance"], dict):
+                                        line["performance"] = {}
+                                    line["performance"]["pitch_modifier"] = pitch_mult
+                                    line["performance"]["speed_modifier"] = speed_val
+                                    
                                 target_line = line
                                 found = True
                                 break
@@ -963,6 +1409,380 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
             logger.error(f"Error verifying aspect: {e}", exc_info=True)
             self.send_json_error(500, str(e))
 
+    def handle_post_save_hierarchy(self):
+        try:
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            params = json.loads(post_data.decode('utf-8'))
+            
+            filename = params.get("filename")
+            tier = params.get("tier", 1)
+            hierarchy_data = params.get("hierarchy")
+            
+            if not filename or not hierarchy_data:
+                self.send_json_error(400, "Missing required parameters: filename, hierarchy")
+                return
+                
+            import re
+            base_name = os.path.splitext(filename)[0]
+            slug = re.sub(r'[^a-zA-Z0-9_\-]', '', base_name)
+            
+            cache_dir = f"data/processed/{slug}/Tier_{tier}"
+            hierarchy_cache = os.path.join(cache_dir, "hierarchy.json")
+            profile_cache = os.path.join(cache_dir, "profile.json")
+            
+            os.makedirs(cache_dir, exist_ok=True)
+            with open(hierarchy_cache, "w", encoding="utf-8") as f:
+                json.dump(hierarchy_data, f, indent=4)
+                
+            # Re-profile to keep metrics in sync
+            profiler = ManuscriptProfiler(use_gpu=False, production_tier=int(tier))
+            filepath = os.path.join("data/corpus", filename)
+            profile_data = profiler.profile_book(filepath, hierarchy_data=hierarchy_data)
+            profiler.save_profile(profile_data, profile_cache)
+            
+            # Sync verified lines with feedback dataset
+            feedback_file = "data/feedback_dataset.json"
+            feedback_data = []
+            if os.path.exists(feedback_file):
+                try:
+                    with open(feedback_file, "r", encoding="utf-8") as f:
+                        feedback_data = json.load(f)
+                except Exception:
+                    feedback_data = []
+            
+            # Keep non-line items or items from other books/tiers intact
+            other_feedback_items = []
+            for item in feedback_data:
+                # Keep if it is a different book or tier, or not a line feedback
+                if "line_id" not in item or item.get("filename") != filename or item.get("tier") != tier:
+                    other_feedback_items.append(item)
+            
+            # Scan current hierarchy for verified lines
+            new_feedback_lines = []
+            for part in hierarchy_data.get("parts", []):
+                for chapter in part.get("chapters", []):
+                    for scene in chapter.get("scenes", []):
+                        for line in scene.get("lines", []):
+                            if line.get("verified"):
+                                line_id = line.get("line_id")
+                                payload = {
+                                    "line_id": line_id,
+                                    "filename": filename,
+                                    "tier": tier,
+                                    "character": line.get("character"),
+                                    "text": line.get("text"),
+                                    "dialogue": line.get("dialogue"),
+                                    "narration_before": line.get("narration_before", ""),
+                                    "narration_after": line.get("narration_after", ""),
+                                    "emotion": line.get("emotion"),
+                                    "attribution_method": line.get("attribution_method")
+                                }
+                                new_feedback_lines.append(payload)
+            
+            final_feedback_data = other_feedback_items + new_feedback_lines
+            with open(feedback_file, "w", encoding="utf-8") as f:
+                json.dump(final_feedback_data, f, indent=4)
+                
+            response = json.dumps({"status": "success", "profile": profile_data}).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(response)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(response)
+        except Exception as e:
+            logger.error(f"Error saving hierarchy: {e}", exc_info=True)
+            self.send_json_error(500, str(e))
+
+    def handle_post_telemetry_correction(self):
+        try:
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            params = json.loads(post_data.decode('utf-8'))
+            
+            os.makedirs("data", exist_ok=True)
+            telemetry_file = "data/telemetry_corrections.json"
+            
+            corrections = []
+            if os.path.exists(telemetry_file):
+                try:
+                    with open(telemetry_file, "r", encoding="utf-8") as f:
+                        corrections = json.load(f)
+                        if not isinstance(corrections, list):
+                            corrections = []
+                except Exception:
+                    corrections = []
+            
+            import datetime
+            record = {
+                "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
+                "filename": params.get("filename"),
+                "correction_type": params.get("correction_type"),
+                "line_id": params.get("line_id"),
+                "original_data": params.get("original_data"),
+                "corrected_data": params.get("corrected_data")
+            }
+            
+            corrections.append(record)
+            
+            with open(telemetry_file, "w", encoding="utf-8") as f:
+                json.dump(corrections, f, indent=4)
+                
+            response = json.dumps({"status": "success"}).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(response)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(response)
+        except Exception as e:
+            logger.error(f"Error saving telemetry correction: {e}", exc_info=True)
+            self.send_json_error(500, str(e))
+
+    def handle_post_process_scenes_async(self):
+        """
+        Webserver endpoint trigger for confirmed batch processing.
+        Executes scene analysis for confirmed scenes only, using the async engine.
+        """
+        import asyncio
+        import hashlib
+        try:
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            params = json.loads(post_data.decode('utf-8'))
+            
+            filename = params.get("filename")
+            tier = params.get("tier", 1)
+            scenes = params.get("scenes") # Expect a list of dicts: [{"scene_id": "...", "text_block": "..."}]
+            global_roster = params.get("global_roster", [])
+            backend = params.get("backend", "vllm")
+            base_url = params.get("base_url")
+            
+            if not filename or not scenes:
+                self.send_json_error(400, "Missing required parameters: filename, scenes")
+                return
+                
+            if not base_url:
+                if backend == "vllm":
+                    base_url = "http://localhost:8000"
+                elif backend == "llamacpp":
+                    base_url = "http://localhost:8080"
+                else:
+                    base_url = "http://localhost:11434"
+                    
+            import re
+            base_name = os.path.splitext(filename)[0]
+            slug = re.sub(r'[^a-zA-Z0-9_\-]', '', base_name)
+            
+            cache_dir = f"data/processed/{slug}/Tier_{tier}"
+            hierarchy_cache = os.path.join(cache_dir, "hierarchy.json")
+            
+            if not os.path.exists(hierarchy_cache):
+                self.send_json_error(404, f"Hierarchy cache not found for {filename} Tier {tier}")
+                return
+                
+            with open(hierarchy_cache, "r", encoding="utf-8") as f:
+                hierarchy_data = json.load(f)
+                
+            # Initialize MemPalace to query rules
+            from src.spatial_memory import MemPalace
+            palace = MemPalace()
+            active_rules = palace.fetch_active_rag_context_rules(filename)
+            
+            # Setup Async Inference Engine
+            from src.async_inference import AsyncInferenceEngine, batch_process_scenes
+            engine = AsyncInferenceEngine(backend=backend, base_url=base_url)
+            
+            # Run batch processing async
+            results = asyncio.run(batch_process_scenes(
+                scenes=scenes,
+                characters=global_roster,
+                engine=engine,
+                rules=active_rules
+            ))
+            
+            # Close engine client
+            asyncio.run(engine.close())
+            
+            # Helper to map performance mods based on emotion
+            def map_performance_mods(emotion: str, text: str) -> dict:
+                pitch = 1.0
+                speed = 1.0
+                style = "neutral_narrative"
+                
+                emotion_lower = emotion.lower()
+                if emotion_lower in {"sadness", "grief", "disappointment", "sad"}:
+                    pitch = 0.90
+                    speed = 0.85
+                    style = "sorrowful_whisper"
+                elif emotion_lower in {"fear", "nervousness", "panic", "tension"}:
+                    pitch = 1.15
+                    speed = 1.10
+                    style = "anxious_whisper"
+                elif emotion_lower in {"anger", "annoyance", "disapproval"}:
+                    pitch = 0.95
+                    speed = 1.05
+                    style = "furious_shout" if "!" in text else "stern_authoritative"
+                elif emotion_lower in {"joy", "excitement", "amusement", "love"}:
+                    pitch = 1.05
+                    speed = 1.02
+                    style = "expressive_joy"
+                    
+                return {
+                    "pitch_modifier": pitch,
+                    "speed_modifier": speed,
+                    "delivery_style": style
+                }
+                
+            from src.models import ScriptLine, PerformanceMetrics
+            cursor = palace.conn.cursor()
+            
+            processed_scenes_report = []
+            
+            for res in results:
+                scene_id = res["scene_id"]
+                if res["status"] == "success":
+                    lines_data = res["data"].get("lines", [])
+                    
+                    # 1. Find scene in hierarchy to get chapter and scene numbers
+                    chapter_num = 1
+                    scene_num = 1
+                    found_scene = False
+                    for part in hierarchy_data.get("parts", []):
+                        for chapter in part.get("chapters", []):
+                            for s_idx, scene in enumerate(chapter.get("scenes", [])):
+                                if scene.get("scene_id") == scene_id:
+                                    chap_match = re.search(r'_c(\d+)', chapter.get("chapter_id", ""))
+                                    if chap_match:
+                                        chapter_num = int(chap_match.group(1))
+                                    scene_match = re.search(r'_s(\d+)', scene_id)
+                                    if scene_match:
+                                        scene_num = int(scene_match.group(1))
+                                    found_scene = True
+                                    break
+                            if found_scene:
+                                break
+                        if found_scene:
+                            break
+                            
+                    # Register Chapter/Wing in SQLite relational tables
+                    wing_id = f"wing_c{chapter_num}"
+                    palace.log_wing(
+                        wing_id=wing_id,
+                        chapter_number=chapter_num,
+                        title=f"Chapter {chapter_num}"
+                    )
+                    
+                    # Validate and map LLM response lines using Pydantic
+                    validated_lines = []
+                    for idx, ld in enumerate(lines_data, 1):
+                        char_name = ld.get("character", "Narrator").strip()
+                        if char_name.lower() == "narrator":
+                            char_name = "Narrator"
+                            
+                        raw_id = f"{slug}_c{chapter_num}_s{scene_num}_l{idx}_{ld.get('text', '')[:20]}"
+                        line_id = hashlib.sha256(raw_id.encode('utf-8')).hexdigest()[:16]
+                        
+                        speaker_id = f"char_{char_name.lower().replace(' ', '_')}"
+                        if char_name == "Narrator":
+                            speaker_id = "char_narrator"
+                            
+                        perf = map_performance_mods(ld.get("emotion", "Neutral"), ld.get("text", ""))
+                        
+                        script_line = ScriptLine(
+                            line_id=line_id,
+                            chapter=chapter_num,
+                            scene=scene_num,
+                            line_number=idx,
+                            character=char_name,
+                            speaker_id=speaker_id,
+                            segment_type=ld.get("segment_type", "narrative"),
+                            text=ld.get("text", ""),
+                            emotion=ld.get("emotion", "Neutral").title(),
+                            performance=PerformanceMetrics(
+                                pitch_modifier=perf["pitch_modifier"],
+                                speed_modifier=perf["speed_modifier"],
+                                delivery_style=perf["delivery_style"]
+                            ),
+                            post_padding_ms=250,
+                            attribution_method="LLM Batch Parser",
+                            confidence=float(ld.get("confidence", 0.90)),
+                            speaker_locked=False
+                        )
+                        
+                        validated_lines.append(script_line.model_dump())
+                        
+                        # Sync line to Relational DB
+                        cursor.execute("SELECT character_name FROM drawers WHERE character_name = ?;", (char_name,))
+                        if not cursor.fetchone():
+                            palace.register_character(
+                                character_name=char_name,
+                                voice_ref_path="data/voice_references/narrator_mono.wav"
+                            )
+                        
+                        palace.log_room(
+                            room_id=line_id,
+                            wing_id=wing_id,
+                            line_number=idx,
+                            character_name=char_name,
+                            dialogue_text=ld.get("text", ""),
+                            emotion=ld.get("emotion", "Neutral").title(),
+                            confidence=float(ld.get("confidence", 0.90)),
+                            metadata={
+                                "performance": perf,
+                                "attribution_method": "LLM Batch Parser"
+                            }
+                        )
+                        
+                    # 2. Update local cache hierarchy with validated lines
+                    found_and_updated = False
+                    for part in hierarchy_data.get("parts", []):
+                        for chapter in part.get("chapters", []):
+                            for scene in chapter.get("scenes", []):
+                                if scene.get("scene_id") == scene_id:
+                                    scene["lines"] = validated_lines
+                                    found_and_updated = True
+                                    break
+                            if found_and_updated:
+                                break
+                        if found_and_updated:
+                            break
+                            
+                    processed_scenes_report.append({
+                        "scene_id": scene_id,
+                        "status": "success",
+                        "lines_count": len(validated_lines)
+                    })
+                else:
+                    processed_scenes_report.append({
+                        "scene_id": scene_id,
+                        "status": "failed",
+                        "error": res.get("error", "Unknown error occurred during batch generation.")
+                    })
+                    
+            palace.close()
+            
+            # Save updated cache hierarchy
+            with open(hierarchy_cache, "w", encoding="utf-8") as f:
+                json.dump(hierarchy_data, f, indent=4)
+                
+            response = json.dumps({
+                "status": "completed",
+                "results": processed_scenes_report
+            }).encode("utf-8")
+            
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(response)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(response)
+            
+        except Exception as e:
+            logger.error(f"Error processing scenes async: {e}", exc_info=True)
+            self.send_json_error(500, str(e))
+
     def send_json_error(self, code, message):
         response = json.dumps({"error": message}).encode("utf-8")
         self.send_response(code)
@@ -976,7 +1796,9 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
 def main():
     port = 8082
     server_address = ('', port)
-    httpd = HTTPServer(server_address, StudioRequestHandler)
+    # Threading: a slow request (XTTS clone preview takes tens of seconds on CPU)
+    # must not block the progress polls and page loads of every other client.
+    httpd = ThreadingHTTPServer(server_address, StudioRequestHandler)
     logger.info(f"Firespeaker Studio GUI Server launched successfully at http://localhost:{port}/")
     try:
         httpd.serve_forever()
