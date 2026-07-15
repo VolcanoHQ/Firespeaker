@@ -34,6 +34,13 @@ PRONOUNS = {
     'we', 'us', 'our', 'ours', 'ourselves'
 }
 
+# Single-token PERSON entities from spaCy occasionally capture emphatic direction
+# words or possessive heading fragments instead of actual character names.
+SPURIOUS_ONE_WORD_PERSON_TOKENS = {
+    'down', 'up', 'left', 'right',
+    'chapter', 'book', 'title', 'author', 'release'
+}
+
 # Common speech/dialogue verbs for attribution detection
 SPEECH_VERBS = {
     'say', 'said', 'saying', 'says', 'ask', 'asked', 'asking', 'asks',
@@ -50,6 +57,14 @@ SPEECH_VERBS = {
 HAS_XCORE = False
 try:
     import torch
+    # Monkeypatch torch.load to default to weights_only=False to allow xCoRe litbank load on PyTorch 2.6+
+    original_torch_load = torch.load
+    def custom_torch_load(*args, **kwargs):
+        kwargs["weights_only"] = False
+        return original_torch_load(*args, **kwargs)
+    torch.load = custom_torch_load
+    if hasattr(torch, "serialization"):
+        torch.serialization.load = custom_torch_load
     from xcore import xCoRe
     HAS_XCORE = True
 except ImportError:
@@ -64,7 +79,7 @@ try:
 except ImportError:
     logger.warning("spaCy not found in current environment. Script will use pure-Python regex fallback.")
 
-# Try loading NLTK VADER
+# Try loading NLTK VADER and resources
 HAS_NLTK = False
 sid = None
 try:
@@ -76,10 +91,35 @@ try:
     except LookupError:
         logger.info("Downloading NLTK VADER lexicon...")
         nltk.download('vader_lexicon', quiet=True)
+    # Ensure punkt is downloaded for xCoRe/tokenization
+    try:
+        nltk.data.find('tokenizers/punkt')
+    except LookupError:
+        logger.info("Downloading NLTK punkt tokenizer...")
+        nltk.download('punkt', quiet=True)
     sid = SentimentIntensityAnalyzer()
     HAS_NLTK = True
 except ImportError:
     logger.warning("NLTK not found. Sentiment will fallback to simple keyword heuristics.")
+
+
+def _is_valid_spacy_person_entity(name: str) -> bool:
+    cleaned_name = name.strip()
+    if cleaned_name.lower() in PRONOUNS or len(cleaned_name) <= 1:
+        return False
+
+    name_parts = cleaned_name.split()
+    if len(name_parts) != 1:
+        return True
+
+    token = name_parts[0]
+    if not re.fullmatch(r'[A-Za-z]+', token):
+        return False
+
+    if token.lower() in SPURIOUS_ONE_WORD_PERSON_TOKENS:
+        return False
+
+    return True
 
 
 class TextToScriptPipeline:
@@ -213,12 +253,22 @@ def _is_metadata_or_clutter(text: str) -> bool:
 
 
 OLLAMA_DISABLED = False
+OLLAMA_MODEL_PREFERENCE_PATTERNS = [
+    r"^llama3\.3",
+    r"^llama3\.2",
+    r"^llama3\.1",
+    r"^llama3",
+    r"^mistral",
+    r"^qwen2\.5.*instruct",
+    r"^qwen2\.5",
+    r"^qwen2",
+]
 
 
 def _detect_local_ollama() -> Optional[str]:
     """
-    Pings the local Ollama instance to check for tags and verifies
-    if qwen2.5-coder:3b is available. Returns the selected model name if found.
+    Pings the local Ollama instance, honors an explicit override, and otherwise
+    prefers stronger instruction-tuned narrative models such as Llama when available.
     """
     global OLLAMA_DISABLED
     if OLLAMA_DISABLED:
@@ -231,11 +281,19 @@ def _detect_local_ollama() -> Optional[str]:
             tags = json.loads(req.read().decode('utf-8'))
             models = [m["name"] for m in tags.get("models", [])]
             logger.info(f"Detected local Ollama models: {models}")
-            # Target Qwen2.5 Coder 3B first
-            for model in models:
-                if "qwen2.5-coder:3b" in model:
-                    return model
-            # Fallback to first available model if Qwen is missing but others exist
+            env_override = os.getenv("FIRESPEAKER_OLLAMA_MODEL")
+            if env_override:
+                for model in models:
+                    if model == env_override:
+                        return model
+                logger.warning(f"FIRESPEAKER_OLLAMA_MODEL='{env_override}' is not installed. Available models: {models}")
+
+            lowered_models = [(model, model.lower()) for model in models]
+            for pattern in OLLAMA_MODEL_PREFERENCE_PATTERNS:
+                for original_model, lowered_model in lowered_models:
+                    if re.search(pattern, lowered_model):
+                        return original_model
+
             if models:
                 return models[0]
     except Exception:
@@ -431,8 +489,9 @@ class ManuscriptAnalyzer:
         else:
             logger.info("Local Ollama model server bypassed or disabled for rapid rule-based processing.")
             
-        # Load xCoRe Model if available
-        if HAS_XCORE:
+        # Load xCoRe only for GPU-backed runs. CPU initialization is slow in this
+        # environment and has been unstable enough to degrade the parser path.
+        if HAS_XCORE and self.use_gpu:
             try:
                 logger.info(f"Initializing xCoRe model 'sapienzanlp/xcore-litbank' on {self.device}...")
                 self.xcore_model = xCoRe(
@@ -443,6 +502,8 @@ class ManuscriptAnalyzer:
             except Exception as e:
                 logger.error(f"Error loading xCoRe model: {e}. Falling back to spaCy rules.")
                 self.xcore_model = None
+        elif HAS_XCORE:
+            logger.info("xCoRe disabled for CPU/non-GPU parsing. Falling back to spaCy/regex coreference.")
                 
         # Load spaCy fallback model
         global nlp
@@ -495,6 +556,70 @@ class ManuscriptAnalyzer:
             return "Tension"
             
         return "Neutral"
+
+    def _fallback_resolve_coreferences(self, text: str) -> dict:
+        """Helper method containing the spaCy/regex fallback logic for coreference resolution."""
+        # Simple fallback using spaCy NER
+        logger.info("Executing spaCy NER for character list...")
+        characters = defaultdict(lambda: {"canonical_name": "", "total_mentions_count": 0, "unique_references": []})
+        if nlp:
+            doc = nlp(text[:100000])  # limit length to avoid memory bloat in fallback
+            for ent in doc.ents:
+                if ent.label_ == "PERSON":
+                    name = ent.text.strip()
+                    if _is_valid_spacy_person_entity(name):
+                        if name not in characters:
+                            characters[name] = {
+                                "canonical_name": name,
+                                "total_mentions_count": 1,
+                                "unique_references": [name]
+                            }
+                        else:
+                            characters[name]["total_mentions_count"] += 1
+        else:
+            logger.info("spaCy not available. Executing regex fallback for character extraction...")
+            # 1. Matches like "Mr. McGregor", "Mrs. Rabbit" (capturing the honorific)
+            honorific_matches = re.findall(r'\b((?:Mr|Mrs|Ms|Dr|Sir|Lady|Miss)\.?\s+[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)\b', text)
+            for name in honorific_matches:
+                name = name.strip()
+                if name.lower() not in PRONOUNS and len(name) > 2:
+                    characters[name] = {
+                        "canonical_name": name,
+                        "total_mentions_count": 1,
+                        "unique_references": [name]
+                    }
+            # 2. Match "old Mrs. Rabbit" and title-case canonicalize to "Old Mrs. Rabbit"
+            old_honorifics = re.findall(r'\b(old\s+Mrs\.?\s+[A-Z][a-zA-Z]+)\b', text, flags=re.IGNORECASE)
+            for name in old_honorifics:
+                name_title = name.title().replace(".", "") # "Old Mrs Rabbit"
+                characters[name_title] = {
+                    "canonical_name": name_title,
+                    "total_mentions_count": 1,
+                    "unique_references": [name]
+                }
+            # 3. Matches like "said Watson", "asked Holmes"
+            verb_after_matches = re.findall(r'\b(?i:say|said|ask|asked|reply|replied|shout|shouted|whisper|whispered)\s+(?:the\s+)?([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)\b', text)
+            for name in verb_after_matches:
+                name = name.strip()
+                if name.lower() not in PRONOUNS and len(name) > 2:
+                    if name not in characters:
+                        characters[name] = {
+                            "canonical_name": name,
+                            "total_mentions_count": 1,
+                            "unique_references": [name]
+                        }
+            # 4. Matches like "Holmes said", "Watson replied"
+            verb_before_matches = re.findall(r'\b([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)\s+(?i:say|said|ask|asked|reply|replied|shout|shouted|whisper|whispered)\b', text)
+            for name in verb_before_matches:
+                name = name.strip()
+                if name.lower() not in PRONOUNS and len(name) > 2:
+                    if name not in characters:
+                        characters[name] = {
+                            "canonical_name": name,
+                            "total_mentions_count": 1,
+                            "unique_references": [name]
+                        }
+        return dict(characters)
 
     def _resolve_coreferences(self, text: str) -> dict:
         """
@@ -561,67 +686,7 @@ Return ONLY the valid JSON object.
 
         # 2. Standard xCoRe or spaCy/regex rules fallback paths
         if not HAS_XCORE or not self.xcore_model:
-            # Simple fallback using spaCy NER
-            logger.info("Executing spaCy NER for character list...")
-            characters = defaultdict(lambda: {"canonical_name": "", "total_mentions_count": 0, "unique_references": []})
-            if nlp:
-                doc = nlp(text[:100000])  # limit length to avoid memory bloat in fallback
-                for ent in doc.ents:
-                    if ent.label_ == "PERSON":
-                        name = ent.text.strip()
-                        if name.lower() not in PRONOUNS and len(name) > 1:
-                            if name not in characters:
-                                characters[name] = {
-                                    "canonical_name": name,
-                                    "total_mentions_count": 1,
-                                    "unique_references": [name]
-                                }
-                            else:
-                                characters[name]["total_mentions_count"] += 1
-            else:
-                logger.info("spaCy not available. Executing regex fallback for character extraction...")
-                # 1. Matches like "Mr. McGregor", "Mrs. Rabbit" (capturing the honorific)
-                honorific_matches = re.findall(r'\b((?:Mr|Mrs|Ms|Dr|Sir|Lady|Miss)\.?\s+[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)\b', text)
-                for name in honorific_matches:
-                    name = name.strip()
-                    if name.lower() not in PRONOUNS and len(name) > 2:
-                        characters[name] = {
-                            "canonical_name": name,
-                            "total_mentions_count": 1,
-                            "unique_references": [name]
-                        }
-                # 2. Match "old Mrs. Rabbit" and title-case canonicalize to "Old Mrs. Rabbit"
-                old_honorifics = re.findall(r'\b(old\s+Mrs\.?\s+[A-Z][a-zA-Z]+)\b', text, flags=re.IGNORECASE)
-                for name in old_honorifics:
-                    name_title = name.title().replace(".", "") # "Old Mrs Rabbit"
-                    characters[name_title] = {
-                        "canonical_name": name_title,
-                        "total_mentions_count": 1,
-                        "unique_references": [name]
-                    }
-                # 3. Matches like "said Watson", "asked Holmes"
-                verb_after_matches = re.findall(r'\b(?i:say|said|ask|asked|reply|replied|shout|shouted|whisper|whispered)\s+(?:the\s+)?([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)\b', text)
-                for name in verb_after_matches:
-                    name = name.strip()
-                    if name.lower() not in PRONOUNS and len(name) > 2:
-                        if name not in characters:
-                            characters[name] = {
-                                "canonical_name": name,
-                                "total_mentions_count": 1,
-                                "unique_references": [name]
-                            }
-                # 4. Matches like "Holmes said", "Watson replied"
-                verb_before_matches = re.findall(r'\b([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)\s+(?i:say|said|ask|asked|reply|replied|shout|shouted|whisper|whispered)\b', text)
-                for name in verb_before_matches:
-                    name = name.strip()
-                    if name.lower() not in PRONOUNS and len(name) > 2:
-                        if name not in characters:
-                            characters[name] = {
-                                "canonical_name": name,
-                                "total_mentions_count": 1,
-                                "unique_references": [name]
-                            }
-            return dict(characters)
+            return self._fallback_resolve_coreferences(text)
 
         # Advanced xCoRe path
         try:
@@ -634,20 +699,23 @@ Return ONLY the valid JSON object.
                 names = [m.strip() for m in mentions if m.strip().lower() not in PRONOUNS]
                 
                 if names:
-                    # Select the longest, most descriptive name as the canonical form
-                    canonical_name = max(names, key=len)
-                    # Filter out names that are just punctuation or too short
-                    if len(canonical_name) > 1 and canonical_name.lower() not in PRONOUNS:
-                        unique_refs = sorted(list(set([m.strip() for m in mentions])))
-                        consolidated[canonical_name] = {
-                            "canonical_name": canonical_name,
-                            "total_mentions_count": len(mentions),
-                            "unique_references": unique_refs
-                        }
-            return consolidated
+                    # Canonical name is the longest non-pronoun mention (to avoid single initials or short fragments)
+                    canonical = max(names, key=len)
+                    
+                    # Normalize honorifics
+                    canonical_norm = canonical
+                    if canonical_norm.lower().startswith("old "):
+                        canonical_norm = canonical_norm.title().replace(".", "")
+                    
+                    consolidated[canonical_norm] = {
+                        "canonical_name": canonical_norm,
+                        "total_mentions_count": len(mentions),
+                        "unique_references": list(set(names))
+                    }
+            return dict(consolidated)
         except Exception as e:
-            logger.error(f"Error during xCoRe coreference prediction: {e}. Returning empty list.")
-            return {}
+            logger.error(f"Error during xCoRe coreference prediction: {e}. Falling back to spaCy/regex rules...")
+            return self._fallback_resolve_coreferences(text)
 
     def detect_and_normalize_quotes(self, text: str) -> tuple[str, str]:
         """
@@ -672,7 +740,7 @@ Return ONLY the valid JSON object.
             
         return text, "double"
 
-    def parse_manuscript(self, file_path: str) -> dict:
+    def parse_manuscript(self, file_path: str, chapters: str = None) -> dict:
         """
         Main parser pipeline. Reads file, segments into chapters, extracts dialogues,
         attributes speakers, assigns emotions, and saves structured script results.
@@ -687,6 +755,45 @@ Return ONLY the valid JSON object.
         
         # Ingest and normalize quotes if using single quotes
         normalized_content, quote_style = self.detect_and_normalize_quotes(raw_content)
+
+        selected_chapters = None
+        if chapters:
+            try:
+                selected_chapters = set()
+                for part in chapters.split(','):
+                    if '-' in part:
+                        start, end = part.split('-')
+                        selected_chapters.update(range(int(start), int(end) + 1))
+                    else:
+                        selected_chapters.add(int(part))
+                logger.info(f"Chapter filter active: targeting chapters {selected_chapters}")
+            except Exception as e:
+                logger.error(f"Failed to parse chapters filter '{chapters}': {e}")
+
+        # Step 2: Segment Text into Chapters (moved up to support early filtering)
+        chapter_pattern = r'(?i)^\s*(?:(?:chapter|scene)\s+(?:[0-9]+|[IVXLCDM]+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)\b|(?:[IVXLCDM]+)(?:--|\s*[-.]\s*).*)$'
+        chapter_splits = re.split(chapter_pattern, normalized_content, flags=re.MULTILINE)
+        
+        # Clean chapter headings lists
+        chapter_headings = [h.strip() for h in re.findall(chapter_pattern, normalized_content, flags=re.MULTILINE)]
+        
+        if len(chapter_splits) <= 1:
+            chapter_blocks = [normalized_content]
+            chapter_headings = ["Chapter 1"]
+        else:
+            chapter_blocks = chapter_splits[1:]
+
+        # Reconstruct content with only target chapters for coreference resolution if filter is active
+        if selected_chapters:
+            coref_content_blocks = []
+            for idx, block in enumerate(chapter_blocks):
+                chapter_num = idx + 1
+                if chapter_num in selected_chapters:
+                    heading = chapter_headings[idx] if idx < len(chapter_headings) else f"Chapter {chapter_num}"
+                    coref_content_blocks.append(heading + "\n\n" + block)
+            coref_content = "\n\n".join(coref_content_blocks)
+        else:
+            coref_content = normalized_content
         
         # Seed character list with registered drawers from MemPalace to bypass NER omissions
         registered_characters = []
@@ -702,8 +809,8 @@ Return ONLY the valid JSON object.
         except Exception as e:
             logger.warning(f"Could not seed character list from MemPalace: {e}")
 
-        # Step 1: Coreference Analysis across full document (run on normalized text)
-        character_db = self._resolve_coreferences(normalized_content)
+        # Step 1: Coreference Analysis across document (run on targeted chapters' text only)
+        character_db = self._resolve_coreferences(coref_content)
         characters_list = list(character_db.keys())
         
         for rc in registered_characters:
@@ -726,25 +833,14 @@ Return ONLY the valid JSON object.
         characters_list, merge_map, confidence_scores, merge_decisions = consolidate_characters(characters_list, confirmed_merges)
         logger.info(f"Consolidated into {len(characters_list)} character profiles after merge check: {characters_list}")
         
-        # Step 2: Segment Text into Chapters
-        chapter_pattern = r'(?i)^\s*(?:(?:chapter|scene)\s+(?:[0-9]+|[IVXLCDM]+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)\b|(?:[IVXLCDM]+)(?:--|\s*[-.]\s*).*)$'
-        chapter_splits = re.split(chapter_pattern, normalized_content, flags=re.MULTILINE)
-        
-        # Clean chapter headings lists
-        # Findall matches lines matching the pattern
-        chapter_headings = [h.strip() for h in re.findall(chapter_pattern, normalized_content, flags=re.MULTILINE)]
-        
-        if len(chapter_splits) <= 1:
-            chapter_blocks = [normalized_content]
-            chapter_headings = ["Chapter 1"]
-        else:
-            chapter_blocks = chapter_splits[1:]
-            
         script_output = []
         dialogue_queue = [] # Queue to track active speakers for alternating dialogue
         
         for c_idx, block in enumerate(chapter_blocks):
-            chapter_name = chapter_headings[c_idx] if c_idx < len(chapter_headings) else f"Chapter {c_idx + 1}"
+            chapter_num = c_idx + 1
+            if selected_chapters and chapter_num not in selected_chapters:
+                continue
+            chapter_name = chapter_headings[c_idx] if c_idx < len(chapter_headings) else f"Chapter {chapter_num}"
             logger.info(f"Parsing {chapter_name}...")
             
             # Segment block into paragraphs
@@ -764,11 +860,11 @@ Return ONLY the valid JSON object.
                 if len(parts) <= 1:
                     speaker_lock_counter = 0  # Narrative paragraph break, clear the speaker lock!
                     # Add pure narration paragraph to script output!
-                    line_content = f"{os.path.basename(file_path)}_c{c_idx+1}_l{line_count}_{paragraph}"
+                    line_content = f"{os.path.basename(file_path)}_c{chapter_num}_l{line_count}_{paragraph}"
                     line_id = hashlib.sha256(line_content.encode('utf-8')).hexdigest()[:16]
                     script_output.append({
                         "line_id": line_id,
-                        "chapter": c_idx + 1,
+                        "chapter": chapter_num,
                         "chapter_title": chapter_name,
                         "line_number": line_count,
                         "character": "Narrator",
@@ -890,12 +986,12 @@ Return ONLY the valid JSON object.
                         
                     emotion = self._determine_emotion(paragraph)
                     
-                    line_content = f"{os.path.basename(file_path)}_c{c_idx+1}_l{line_count}_{dialogue_text}"
+                    line_content = f"{os.path.basename(file_path)}_c{chapter_num}_l{line_count}_{dialogue_text}"
                     line_id = hashlib.sha256(line_content.encode('utf-8')).hexdigest()[:16]
                     
                     script_output.append({
                         "line_id": line_id,
-                        "chapter": c_idx + 1,
+                        "chapter": chapter_num,
                         "chapter_title": chapter_name,
                         "line_number": line_count,
                         "character": assigned_character,
@@ -912,7 +1008,7 @@ Return ONLY the valid JSON object.
             "metadata": {
                 "source_file": os.path.basename(file_path),
                 "quote_style_detected": quote_style,
-                "total_chapters": len(chapter_blocks),
+                "total_chapters": len(chapter_blocks) if not selected_chapters else len(selected_chapters),
                 "total_lines_extracted": len(script_output),
                 "characters_identified": characters_list,
                 "merge_decisions": merge_decisions

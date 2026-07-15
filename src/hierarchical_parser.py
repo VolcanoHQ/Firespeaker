@@ -450,7 +450,7 @@ def parse_manuscript_for_segment(self, segment_text: str, file_name: str, chapte
 
             # Determine paragraph-end padding bonus
             is_last_block = (b_idx == len(blocks) - 1)
-            post_padding = 800 if is_last_block else 400
+            post_padding = 600 if is_last_block else 150
 
             # Default values
             assigned_character = "Narrator"
@@ -655,7 +655,7 @@ Return ONLY the valid JSON object.
             # Performance payload details
             pitch_mod = 1.0
             speed_mod = 1.0
-            if speaker_id != "char_narrator" and speaker_id != "char_unknown_fallback":
+            if speaker_id != "char_unknown_fallback":
                 # Read character drawers settings if active
                 drawer = self.get_character_drawer(assigned_character) if hasattr(self, "get_character_drawer") else None
                 if not drawer:
@@ -668,8 +668,9 @@ Return ONLY the valid JSON object.
                     except Exception:
                         pass
                 if drawer:
-                    pitch_mod = drawer["modulation_config"].get("pitch", 1.0)
-                    speed_mod = drawer["modulation_config"].get("speed", 1.0)
+                    pitch_semitones = float(drawer["modulation_config"].get("pitch", 0.0))
+                    pitch_mod = 2.0 ** (pitch_semitones / 12.0)
+                    speed_mod = float(drawer["modulation_config"].get("speed", 1.0))
 
             performance = {
                 "pitch_modifier": pitch_mod,
