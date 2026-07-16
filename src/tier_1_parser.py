@@ -1702,6 +1702,42 @@ def ingest_manuscript_tier_1(file_path: str, chapters: str = None, enable_llm_en
                 for scene in chapter.scenes
             ]
 
+    # Human speaker overrides (console Phase 2): applied AFTER attribution,
+    # review, and alias merge -- the human's word is final and survives re-runs
+    # (line_id is a content hash, so an override orphans harmlessly if the
+    # line's text changes). Same durable-veto pattern as confirmed_merges.
+    #
+    # LAYERING RULE (found by test): overrides are applied to the MANIFEST only,
+    # never baked into loop4_lines_enriched.json. The artifact stays the
+    # attribution layer's pure output -- it is resume's reuse source and the
+    # console overlays overrides at serve time; baking them in made clearing an
+    # override impossible (the resumed artifact kept the stale correction).
+    overrides_path = os.path.join(pipeline_dir, "speaker_overrides.json")
+    if enable_llm_enrichment and os.path.exists(overrides_path):
+        try:
+            with open(overrides_path, encoding="utf-8") as f:
+                speaker_overrides = json.load(f)
+            applied = 0
+            for part in part_payloads:
+                for chapter in part.chapters:
+                    for scene in chapter.scenes:
+                        for i, line in enumerate(scene.lines):
+                            ov = speaker_overrides.get(line.line_id)
+                            if ov and ov.get("character") and ov["character"] != line.character:
+                                scene.lines[i] = line.model_copy(update={
+                                    "character": ov["character"],
+                                    "speaker_id": f"char_{ov['character'].lower().replace(' ', '_')}",
+                                    "attribution_method": "human_override",
+                                    "confidence": 1.0,
+                                    "speaker_locked": True,
+                                })
+                                applied += 1
+            if applied:
+                print(f"  [Overrides] Applied {applied} human speaker correction(s) to the manifest.")
+                logger.info(f"Applied {applied} human speaker override(s) from {overrides_path}.")
+        except Exception as e:
+            logger.warning(f"Speaker overrides unreadable ({e}); proceeding without.")
+
     # Save Loop 2-4 artifacts
     with open(os.path.join(pipeline_dir, "loop2_chapters.json"), "w", encoding="utf-8") as f:
         json.dump(all_loop2_chapters, f, indent=4)

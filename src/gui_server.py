@@ -380,7 +380,7 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
         parsed_url = urllib.parse.urlparse(self.path)
         path = parsed_url.path
         
-        if path.startswith("/api/marketplace/") or path.startswith("/api/voicestudio/"):
+        if path.startswith("/api/marketplace/") or path.startswith("/api/voicestudio/") or path == "/api/console/correct_speaker":
             try:
                 content_length = int(self.headers.get('Content-Length') or 0)
                 body = json.loads(self.rfile.read(content_length).decode('utf-8')) if content_length else {}
@@ -389,6 +389,25 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
                 return
             if path.startswith("/api/marketplace/"):
                 self.handle_marketplace(path, parsed_url.query, body=body)
+            elif path == "/api/console/correct_speaker":
+                from src import console_api
+                try:
+                    result = console_api.save_speaker_override(
+                        body.get("book", ""), body.get("line_id", ""),
+                        body.get("character", ""), body.get("scene_id", ""))
+                    if result is None:
+                        self.send_json_error(400, "Invalid book or line_id")
+                        return
+                    resp = json.dumps(result).encode("utf-8")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(resp)))
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.end_headers()
+                    self.wfile.write(resp)
+                except Exception as e:
+                    logger.error(f"correct_speaker error: {e}")
+                    self.send_json_error(500, f"Override error: {e}")
             else:
                 self.handle_voicestudio(path, parsed_url.query, body=body)
         elif path == "/api/analyze":

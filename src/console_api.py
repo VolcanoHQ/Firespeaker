@@ -187,8 +187,11 @@ def scene_detail(book: str, scene_id: str) -> Optional[Dict[str, Any]]:
     payload = next((p for p in _load_lines(book) if p.get("scene_id") == scene_id), None)
     if payload is None:
         return None
+    overrides = load_speaker_overrides(book)
     lines = []
     for i, l in enumerate(payload.get("lines", [])):
+        l = dict(l)
+        apply_speaker_overrides([l], overrides)
         lines.append({
             "index": i,
             "line_id": l.get("line_id"),
@@ -216,12 +219,70 @@ def scene_detail(book: str, scene_id: str) -> Optional[Dict[str, Any]]:
         "book": book,
         "scene_id": scene_id,
         "scene_text": scene_text,
+        "allowed_speakers": book_speakers(book),
         "lines": lines,
         "direction": _for_scene(os.path.join(t3, "production_script.json")),
         "sound_design": _for_scene(os.path.join(t3, "sound_design.json")),
         "dramatization": _for_scene(os.path.join(t3, "dramatization.json")),
         "sfx_cues": (sfx_entry or {}).get("sfx_cues", []),
     }
+
+
+def load_speaker_overrides(book: str) -> Dict[str, Dict[str, Any]]:
+    """Durable human attribution corrections, keyed by line_id (a content hash,
+    stable across re-runs while the line's text is unchanged; orphaned entries
+    simply stop matching). Same human-veto pattern as confirmed_merges."""
+    book = _safe_book(book)
+    if not book:
+        return {}
+    return _load_json(os.path.join(_tier1_dir(book), "speaker_overrides.json")) or {}
+
+
+def save_speaker_override(book: str, line_id: str, character: str,
+                          scene_id: str = "") -> Optional[Dict[str, Any]]:
+    """Set (or clear, with character='') one line's human speaker correction."""
+    book = _safe_book(book)
+    if not book or not re.fullmatch(r"[0-9a-f]{16}", line_id or ""):
+        return None
+    character = (character or "").strip()[:60]
+    path = os.path.join(_tier1_dir(book), "speaker_overrides.json")
+    overrides = _load_json(path) or {}
+    if character:
+        overrides[line_id] = {"character": character, "scene_id": scene_id,
+                              "corrected_by": "human", "at": __import__("time").time()}
+    else:
+        overrides.pop(line_id, None)
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(overrides, f, indent=2)
+    os.replace(tmp, path)
+    return {"overrides": len(overrides), "line_id": line_id, "character": character or None}
+
+
+def apply_speaker_overrides(lines: List[Dict[str, Any]], overrides: Dict[str, Dict[str, Any]]) -> int:
+    """In-place application of human corrections to line dicts; returns count.
+    The human's word is final: it beats attribution, review, and alias merge."""
+    applied = 0
+    for l in lines:
+        ov = overrides.get(str(l.get("line_id")))
+        if ov and ov.get("character"):
+            l["character"] = ov["character"]
+            l["speaker_id"] = "char_" + re.sub(r"\s+", "_", ov["character"].lower())
+            l["attribution_method"] = "human_override"
+            l["confidence"] = 1.0
+            l["speaker_locked"] = True
+            applied += 1
+    return applied
+
+
+def book_speakers(book: str) -> List[str]:
+    """Every speaker attributed anywhere in the book (for the correction picker)."""
+    speakers = set()
+    for payload in _load_lines(book):
+        for l in payload.get("lines", []):
+            if l.get("segment_type") == "dialogue" and l.get("character"):
+                speakers.add(l["character"])
+    return sorted(speakers | {"Narrator"})
 
 
 def progress() -> Dict[str, Any]:

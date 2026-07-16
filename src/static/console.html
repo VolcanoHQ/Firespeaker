@@ -233,6 +233,7 @@ function renderScene() {
   else html += `<div class="card" style="white-space:pre-wrap">${esc(d.scene_text)}</div>`;
 
   $("#sceneView").innerHTML = html;
+  if (state.tab === "transcript") wireCorrections(d);
   document.querySelectorAll(".tab").forEach(el =>
     el.addEventListener("click", () => { state.tab = el.dataset.tab; renderScene(); }));
   document.querySelectorAll(".playBtn").forEach(el =>
@@ -247,17 +248,47 @@ function renderTranscript(d) {
   return d.lines.map(l => {
     const isNarr = l.character === "Narrator" || l.segment_type !== "dialogue";
     const conf = typeof l.confidence === "number" ? l.confidence : null;
+    const isHuman = l.attribution_method === "human_override";
+    const clickable = l.segment_type === "dialogue"
+      ? ` data-correct="${esc(l.line_id)}" title="click to correct speaker" style="cursor:pointer; text-decoration:underline dotted"` : "";
     return `<div class="lineRow">
       <span class="idx">${l.index}</span>
-      <span class="speaker ${isNarr ? "narr" : ""}">${esc(l.character)}</span>
+      <span class="speaker ${isNarr ? "narr" : ""}"${clickable}>${esc(l.character)}</span>
       <span class="lineText ${l.segment_type !== "dialogue" ? "narrative" : ""}">${esc(l.text)}</span>
       <span class="provChips">
         ${l.utterance_type === "vocalization" ? '<span class="chip vocal">vocal</span>' : ""}
-        ${l.segment_type === "dialogue" ? provChip(l.attribution_method) : ""}
-        ${conf !== null && l.segment_type === "dialogue" ? `<span class="confBar" title="confidence ${conf}"><i style="width:${Math.round(conf*100)}%"></i></span>` : ""}
+        ${isHuman ? '<span class="chip reviewed" title="human correction — survives re-runs">human</span>'
+                  : (l.segment_type === "dialogue" ? provChip(l.attribution_method) : "")}
+        ${conf !== null && l.segment_type === "dialogue" && !isHuman ? `<span class="confBar" title="confidence ${conf}"><i style="width:${Math.round(conf*100)}%"></i></span>` : ""}
         ${l.wav ? `<button class="playBtn" data-wav="${esc(l.wav)}" title="audition cached line">▶</button>` : ""}
       </span></div>`;
   }).join("");
+}
+
+function wireCorrections(d) {
+  document.querySelectorAll("[data-correct]").forEach(el => el.addEventListener("click", () => {
+    if (el.querySelector("select")) return;
+    const lineId = el.dataset.correct;
+    const current = el.textContent;
+    const opts = (d.allowed_speakers || []).map(s =>
+      `<option ${s === current ? "selected" : ""}>${esc(s)}</option>`).join("");
+    el.innerHTML = `<select style="font:inherit;background:var(--panel2);color:var(--text);border:1px solid var(--accent);border-radius:4px">
+      ${opts}<option value="__other__">Other…</option><option value="__clear__">(clear correction)</option></select>`;
+    const sel = el.querySelector("select");
+    sel.focus();
+    sel.addEventListener("change", async () => {
+      let character = sel.value;
+      if (character === "__other__") character = (prompt("Speaker name:") || "").trim();
+      if (character === "__clear__") character = "";
+      if (character === current || (character === "" && d.lines.find(l => l.line_id === lineId)?.attribution_method !== "human_override")) { renderScene(); return; }
+      await fetch("/api/console/correct_speaker", { method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ book: state.book, scene_id: state.scene, line_id: lineId, character }) });
+      state.detail = await api(`/api/console/scene?book=${encodeURIComponent(state.book)}&scene=${encodeURIComponent(state.scene)}`);
+      renderScene();
+    });
+    sel.addEventListener("blur", () => renderScene());
+  }));
 }
 
 function renderLane(d) {
