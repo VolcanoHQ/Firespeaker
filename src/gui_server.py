@@ -322,6 +322,9 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
                 payload = console_api.scene_detail(q("book"), q("scene"))
             elif path == "/api/console/progress":
                 payload = console_api.progress()
+            elif path == "/api/console/trailer_scene":
+                from src import tier_preview
+                payload = tier_preview.pick_trailer_scene(q("book"))
             elif path == "/api/console/audio":
                 wav = console_api.resolve_audio(q("file"))
                 if not wav:
@@ -380,7 +383,7 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
         parsed_url = urllib.parse.urlparse(self.path)
         path = parsed_url.path
         
-        if path.startswith("/api/marketplace/") or path.startswith("/api/voicestudio/") or path == "/api/console/correct_speaker":
+        if path.startswith("/api/marketplace/") or path.startswith("/api/voicestudio/") or path in ("/api/console/correct_speaker", "/api/console/preview_tier"):
             try:
                 content_length = int(self.headers.get('Content-Length') or 0)
                 body = json.loads(self.rfile.read(content_length).decode('utf-8')) if content_length else {}
@@ -389,6 +392,25 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
                 return
             if path.startswith("/api/marketplace/"):
                 self.handle_marketplace(path, parsed_url.query, body=body)
+            elif path == "/api/console/preview_tier":
+                from src import tier_preview
+                try:
+                    result = tier_preview.render_tier_preview(
+                        body.get("book", ""), int(body.get("tier", 0)), body.get("scene_id") or None)
+                    if result is None:
+                        self.send_json_error(400, "Invalid book or tier")
+                        return
+                    code = 200 if "wav" in result else 409
+                    resp = json.dumps(result, default=str).encode("utf-8")
+                    self.send_response(code)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(resp)))
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.end_headers()
+                    self.wfile.write(resp)
+                except Exception as e:
+                    logger.error(f"preview_tier error: {e}")
+                    self.send_json_error(500, f"Preview error: {e}")
             elif path == "/api/console/correct_speaker":
                 from src import console_api
                 try:

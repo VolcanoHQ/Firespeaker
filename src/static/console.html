@@ -92,6 +92,7 @@
   .mergeGroup { font-size: 12.5px; padding: 3px 0; }
   .mergeGroup b { color: var(--accent2); }
   audio { display: none; }
+  @keyframes rot { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
@@ -168,7 +169,11 @@ async function selectBook(name, el) {
   $("#tree").innerHTML = '<div class="empty">loading…</div>';
   $("#sceneView").innerHTML = '<div class="empty">select a scene</div>';
   const t = await api(`/api/console/book?name=${encodeURIComponent(name)}`);
-  let html = "";
+  let html = `<div class="card"><h3>Tier preview — trailer scene</h3>
+    <div class="row">
+      ${[1,2,3].map(n => `<button class="ghost" data-tierprev="${n}" style="padding:5px 14px">Tier ${n}</button>`).join("")}
+      <span id="prevTierStatus" class="hint"></span></div>
+    <audio id="prevTierAudio" controls style="display:none; width:100%; margin-top:8px"></audio></div>`;
   if (t.book_bible) {
     const bb = t.book_bible;
     html += `<div class="card"><h3>Book Bible</h3><div class="kv">
@@ -200,6 +205,25 @@ async function selectBook(name, el) {
   $("#tree").innerHTML = html || '<div class="empty">no structure artifacts</div>';
   document.querySelectorAll("#tree .sceneRow").forEach(el =>
     el.addEventListener("click", () => selectScene(el.dataset.scene, el)));
+  document.querySelectorAll("[data-tierprev]").forEach(btn => btn.addEventListener("click", async () => {
+    const tier = +btn.dataset.tierprev;
+    const status = $("#prevTierStatus");
+    document.querySelectorAll("[data-tierprev]").forEach(b => b.disabled = true);
+    status.innerHTML = `<span class="spin" style="display:inline-block;width:12px;height:12px;border:2px solid var(--dim);border-top-color:var(--accent);border-radius:50%;animation:rot .8s linear infinite;vertical-align:-2px"></span> rendering tier ${tier} preview… (first render can take minutes)`;
+    try {
+      const r = await fetch("/api/console/preview_tier", { method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ book: state.book, tier }) });
+      const j = await r.json();
+      if (j.wav) {
+        const a = $("#prevTierAudio");
+        a.src = "/api/console/audio?file=" + encodeURIComponent(j.wav);
+        a.style.display = "block"; a.play();
+        status.textContent = `tier ${tier} · scene ${j.scene_id}${j.cached ? " (cached)" : ""}`;
+      } else status.textContent = j.error || "preview failed";
+    } catch (e) { status.textContent = "preview failed: " + e.message; }
+    document.querySelectorAll("[data-tierprev]").forEach(b => b.disabled = false);
+  }));
   document.querySelectorAll("#tree [data-toggle]").forEach(el =>
     el.addEventListener("click", () => {
       const sc = el.nextElementSibling;
