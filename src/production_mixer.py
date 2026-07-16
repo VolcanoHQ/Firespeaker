@@ -25,6 +25,7 @@ import re
 import sys
 import json
 import wave
+import hashlib
 import logging
 import argparse
 import subprocess
@@ -141,9 +142,40 @@ def make_ambience_loop(duration_sec: float, out_path: str) -> Optional[str]:
 # Voice line resolution (cache-or-synthesize)
 # ----------------------------------------------------
 
+def _voice_fingerprint(synth, character: str, memo: Dict[str, str]) -> str:
+    """Short hash of everything that determines a character's rendered VOICE:
+    reference wav, pinned builtin speaker, and pitch/speed modulation. Recasting
+    a character changes the fingerprint, which invalidates its cached line wavs
+    -- without this, a recast silently reuses audio in the OLD voice."""
+    if character in memo:
+        return memo[character]
+    fp = "novoice"
+    try:
+        drawer = synth.palace.get_character_drawer(character)
+        if drawer:
+            mod = drawer.get("modulation_config") or {}
+            if isinstance(mod, str):
+                try:
+                    mod = json.loads(mod)
+                except Exception:
+                    mod = {}
+            key = "|".join(str(x) for x in (
+                drawer.get("voice_ref_path"), mod.get("xtts_speaker"),
+                mod.get("speed"), mod.get("pitch")))
+            fp = hashlib.sha1(key.encode()).hexdigest()[:8]
+    except Exception as e:
+        logger.warning(f"Voice fingerprint unavailable for '{character}' ({e}); using shared key.")
+    memo[character] = fp
+    return fp
+
+
 def resolve_line_wavs(lines: List[Dict[str, Any]], synth, overrides: Optional[Dict[str, Dict[str, Any]]] = None) -> List[Tuple[str, Dict[str, Any]]]:
     """Returns [(wav_path, line_dict)] for every line, synthesizing on cache miss.
-    Uses the same cache-name convention as tts_compiler so prior runs are reused.
+
+    Cache names carry a voice fingerprint (see _voice_fingerprint) so recasting a
+    character invalidates exactly that character's cached audio. Legacy cache files
+    from the pre-fingerprint convention are adopted (renamed) on first touch --
+    a one-time migration that avoids resynthesizing whole books.
 
     `overrides` (from {book}/tier3/line_overrides.json, keyed by line_id) supports
     human-in-the-loop production edits: {"text": ...} replaces the synthesized text
@@ -152,25 +184,33 @@ def resolve_line_wavs(lines: List[Dict[str, Any]], synth, overrides: Optional[Di
     outputs_dir = "scratch/pipeline_workspace/outputs"
     os.makedirs(outputs_dir, exist_ok=True)
     overrides = overrides or {}
+    fp_memo: Dict[str, str] = {}
     resolved = []
     for line in lines:
         char = line["character"]
         char_slug = re.sub(r'[^a-zA-Z0-9_\-]', '', char)
         emotion = line.get("emotion", "Neutral")
+        fp = _voice_fingerprint(synth, char, fp_memo)
         override = overrides.get(line["line_id"])
         text = override["text"] if override and override.get("text") else line["text"]
         if override:
-            text_tag = "ov" + __import__("hashlib").sha1(text.encode()).hexdigest()[:8]
-            wav = os.path.join(outputs_dir, f"line_{line['line_id']}_{char_slug}_tier3_{text_tag}_{emotion}.wav")
+            text_tag = "ov" + hashlib.sha1(text.encode()).hexdigest()[:8]
+            stem = f"line_{line['line_id']}_{char_slug}_tier3_{text_tag}_{emotion}"
         else:
-            wav = os.path.join(outputs_dir, f"line_{line['line_id']}_{char_slug}_tier3_{emotion}.wav")
+            stem = f"line_{line['line_id']}_{char_slug}_tier3_{emotion}"
+        wav = os.path.join(outputs_dir, f"{stem}_v{fp}.wav")
+        legacy = os.path.join(outputs_dir, f"{stem}.wav")
         if not (os.path.exists(wav) and os.path.getsize(wav) > 0):
-            synth.synthesize_line(
-                character_name=char,
-                dialogue_text=text,
-                target_emotion=emotion,
-                output_wav_path=wav,
-            )
+            if os.path.exists(legacy) and os.path.getsize(legacy) > 0:
+                # pre-fingerprint cache: adopt under the CURRENT voice once
+                os.replace(legacy, wav)
+            else:
+                synth.synthesize_line(
+                    character_name=char,
+                    dialogue_text=text,
+                    target_emotion=emotion,
+                    output_wav_path=wav,
+                )
         resolved.append((wav, line))
     return resolved
 
