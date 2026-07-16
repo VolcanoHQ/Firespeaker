@@ -1355,13 +1355,21 @@ def parse_tier_1_lines(scene_text: str, part_num: int, chapter_num: int, scene_n
     return script_lines
 
 
-def ingest_manuscript_tier_1(file_path: str, chapters: str = None, enable_llm_enrichment: bool = False) -> ManuscriptManifest:
+def ingest_manuscript_tier_1(file_path: str, chapters: str = None, enable_llm_enrichment: bool = False,
+                             resume_enrichment: bool = False) -> ManuscriptManifest:
     """Ingests a raw book text file and outputs a validated ManuscriptManifest.
 
     enable_llm_enrichment (default False) opts into a post-Loop-4 LLM enrichment pass
     (see enrich_scene_lines_with_llm) that upgrades speaker attribution/emotion beyond
     the flat "Narrator" default. When False, this function makes zero network calls and
     never imports src.llm_client -- Tier 1's zero-cost/offline guarantee is unaffected.
+
+    resume_enrichment (with enable_llm_enrichment): free-tier daily quotas can starve
+    the back half of a long book, leaving whole scenes on "Tier 1 Default". Resume
+    reuses every previously-enriched scene from the existing artifacts (matching by
+    scene text, so structure drift safely falls through to fresh work) and spends LLM
+    calls ONLY on scenes that never got attribution -- a multi-day book finishes
+    itself across quota windows instead of re-paying for everything.
     """
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"File not found: {file_path}")
@@ -1496,6 +1504,54 @@ def ingest_manuscript_tier_1(file_path: str, chapters: str = None, enable_llm_en
     all_llm_cleancheck_issues = []
     all_llm_sfx_cues = []
 
+    # Resume: index the previous run's artifacts. Reuse is text-keyed, never
+    # id-keyed alone -- if the deterministic structure drifted (e.g. a scrubber
+    # fix changed scene boundaries), stale entries simply won't match and those
+    # scenes re-enrich fresh.
+    prev_enriched_by_id: Dict[str, Dict[str, Any]] = {}
+    prev_scenes_by_chapter: Dict[str, List[Dict[str, Any]]] = {}
+    prev_sfx_by_id: Dict[str, Any] = {}
+    prev_clean_by_id: Dict[str, Any] = {}
+    resumed_scenes = 0
+    if enable_llm_enrichment and resume_enrichment:
+        def _load_prev(name):
+            p = os.path.join(pipeline_dir, name)
+            if os.path.exists(p):
+                try:
+                    with open(p, encoding="utf-8") as f:
+                        return json.load(f)
+                except Exception as e:
+                    logger.warning(f"Resume: unreadable {name} ({e}); ignoring.")
+            return []
+        for entry in _load_prev("loop4_lines_enriched.json"):
+            prev_enriched_by_id[entry.get("scene_id", "")] = entry
+        for sc in _load_prev("loop3_scenes.json"):
+            chap_key = sc.get("scene_id", "").rsplit("_s", 1)[0]
+            prev_scenes_by_chapter.setdefault(chap_key, []).append(sc)
+        for entry in _load_prev("loopE_llm_sfx_cues.json"):
+            prev_sfx_by_id[entry.get("scene_id", "")] = entry
+        for entry in _load_prev("loopE_llm_cleancheck.json"):
+            prev_clean_by_id[entry.get("scene_id", "")] = entry
+        logger.info(f"Resume: {len(prev_enriched_by_id)} previously-enriched scene(s) indexed.")
+
+    def _reusable_scene(scene_id: str, current_lines: List[ScriptLine]) -> Optional[List[ScriptLine]]:
+        """Previous enrichment is reusable when the scene's line TEXTS match
+        exactly and its dialogue actually got attributed (or it has none)."""
+        prev = prev_enriched_by_id.get(scene_id)
+        if not prev or len(prev.get("lines", [])) != len(current_lines):
+            return None
+        if [l.get("text") for l in prev["lines"]] != [l.text for l in current_lines]:
+            return None
+        dialogue = [l for l in prev["lines"] if l.get("segment_type") == "dialogue"]
+        enriched = [l for l in dialogue if str(l.get("attribution_method")) != "Tier 1 Default"]
+        if dialogue and not enriched:
+            return None  # this is exactly the quota-starved case resume exists to redo
+        try:
+            return [ScriptLine.model_validate(l) for l in prev["lines"]]
+        except Exception as e:
+            logger.warning(f"Resume: previous lines for {scene_id} failed validation ({e}); re-enriching.")
+            return None
+
     for p_idx, part in enumerate(parts):
         part_id = part["part_id"]
         part_title = part["title"]
@@ -1526,14 +1582,26 @@ def ingest_manuscript_tier_1(file_path: str, chapters: str = None, enable_llm_en
                 s.get("boundary_source") in ("transition_heuristic", "whole_chapter", "marker_then_size_chunk")
                 for s in scenes
             ):
-                _progress.report(_book, "g4_scene_segmentation", total_chapters, total_chapters_detected, chap_title[:40])
-                try:
-                    ai_scenes = director_segment_chapter(chap_block, chap_id)
-                    if ai_scenes:
-                        print(f"     [G4] Director's Scene Segmenter re-segmented: {len(scenes)} -> {len(ai_scenes)} scenes.")
-                        scenes = ai_scenes
-                except Exception as e:
-                    logger.warning(f"G4 gate failed for {chap_id}, keeping deterministic scenes: {e}")
+                # Resume: reuse the previous run's boundaries for this chapter when
+                # every previous scene text still exists verbatim in the chapter --
+                # re-running the director could draw DIFFERENT boundaries, which
+                # would orphan the enriched scenes we're trying to keep.
+                prev_chapter_scenes = prev_scenes_by_chapter.get(chap_id, [])
+                if prev_chapter_scenes and all(
+                    sc.get("text_block") and sc["text_block"] in chap_block
+                    for sc in prev_chapter_scenes
+                ):
+                    scenes = prev_chapter_scenes
+                    print(f"     [Resume] Reusing previous run's {len(scenes)} scene boundaries for {chap_id}.")
+                else:
+                    _progress.report(_book, "g4_scene_segmentation", total_chapters, total_chapters_detected, chap_title[:40])
+                    try:
+                        ai_scenes = director_segment_chapter(chap_block, chap_id)
+                        if ai_scenes:
+                            print(f"     [G4] Director's Scene Segmenter re-segmented: {len(scenes)} -> {len(ai_scenes)} scenes.")
+                            scenes = ai_scenes
+                    except Exception as e:
+                        logger.warning(f"G4 gate failed for {chap_id}, keeping deterministic scenes: {e}")
             all_loop3_scenes.extend(scenes)
             scene_payloads = []
             
@@ -1556,22 +1624,31 @@ def ingest_manuscript_tier_1(file_path: str, chapters: str = None, enable_llm_en
                 })
 
                 if enable_llm_enrichment:
-                    _progress.report(_book, "tier2_enrichment", total_scenes, max(total_scenes, len(scenes) * total_chapters_detected), scene_id)
-                    try:
-                        enriched_lines, clean_issues, sfx_cues = enrich_scene_lines_with_llm(scene_block, lines, global_roster=global_roster)
-                        if clean_issues:
-                            all_llm_cleancheck_issues.append({
-                                "scene_id": scene_id,
-                                "issues": clean_issues
-                            })
-                        if sfx_cues:
-                            all_llm_sfx_cues.append({
-                                "scene_id": scene_id,
-                                "sfx_cues": sfx_cues
-                            })
-                        lines = enriched_lines
-                    except Exception as e:
-                        logger.warning(f"LLM enrichment failed for scene {scene_id}, keeping Tier 1 defaults: {e}")
+                    reused = _reusable_scene(scene_id, lines) if resume_enrichment else None
+                    if reused is not None:
+                        lines = reused
+                        resumed_scenes += 1
+                        if scene_id in prev_clean_by_id:
+                            all_llm_cleancheck_issues.append(prev_clean_by_id[scene_id])
+                        if scene_id in prev_sfx_by_id:
+                            all_llm_sfx_cues.append(prev_sfx_by_id[scene_id])
+                    else:
+                        _progress.report(_book, "tier2_enrichment", total_scenes, max(total_scenes, len(scenes) * total_chapters_detected), scene_id)
+                        try:
+                            enriched_lines, clean_issues, sfx_cues = enrich_scene_lines_with_llm(scene_block, lines, global_roster=global_roster)
+                            if clean_issues:
+                                all_llm_cleancheck_issues.append({
+                                    "scene_id": scene_id,
+                                    "issues": clean_issues
+                                })
+                            if sfx_cues:
+                                all_llm_sfx_cues.append({
+                                    "scene_id": scene_id,
+                                    "sfx_cues": sfx_cues
+                                })
+                            lines = enriched_lines
+                        except Exception as e:
+                            logger.warning(f"LLM enrichment failed for scene {scene_id}, keeping Tier 1 defaults: {e}")
                     all_loop4_lines_enriched.append({
                         "scene_id": scene_id,
                         "lines": [line.model_dump() for line in lines]
@@ -1595,6 +1672,11 @@ def ingest_manuscript_tier_1(file_path: str, chapters: str = None, enable_llm_en
                 chapters=chapter_payloads
             ))
         
+    if enable_llm_enrichment and resume_enrichment:
+        fresh = total_scenes - resumed_scenes
+        print(f"  [Resume] Reused {resumed_scenes} enriched scene(s); freshly enriched {fresh}.")
+        logger.info(f"Resume summary: reused {resumed_scenes}, fresh {fresh} of {total_scenes} scenes.")
+
     # Book-level alias merge: collapse title/disguise/partial-name duplicates
     # ("Count Von Kramm" / "Majesty" / "King" -> one canonical identity) so a
     # single character doesn't get multiple voices at synthesis time.
@@ -1660,6 +1742,7 @@ def main():
     parser.add_argument("--output", type=str, help="Path to save validated JSON manifest (or output directory in --input-dir mode; default scratch/corpus_analysis)")
     parser.add_argument("--stress-test", action="store_true", help="Run the Public Domain Stress Test on the three corpus books")
     parser.add_argument("--enable-llm-enrichment", action="store_true", help="Opt-in: enrich Tier 1 output with cloud/local LLM speaker attribution (Gemini free tier -> Groq -> Ollama -> off). Not applied during --stress-test, which stays zero-LLM as a stable regression gate.")
+    parser.add_argument("--resume-enrichment", action="store_true", help="With --enable-llm-enrichment: reuse previously-enriched scenes from the existing pipeline artifacts and spend LLM calls only on scenes still on Tier 1 defaults (quota-starved runs finish across days)")
 
     args = parser.parse_args()
     
@@ -1724,7 +1807,7 @@ def main():
             print(f"\n{'='*60}\nBATCH: {base}\n{'='*60}")
             start_time = time.time()
             try:
-                manifest = ingest_manuscript_tier_1(path, enable_llm_enrichment=args.enable_llm_enrichment)
+                manifest = ingest_manuscript_tier_1(path, enable_llm_enrichment=args.enable_llm_enrichment, resume_enrichment=args.resume_enrichment)
                 out_path = os.path.join(out_dir, f"{base}.json")
                 with open(out_path, "w", encoding="utf-8") as f:
                     f.write(manifest.model_dump_json(indent=4))
@@ -1770,7 +1853,7 @@ def main():
         sys.exit(1)
         
     try:
-        manifest = ingest_manuscript_tier_1(args.input, enable_llm_enrichment=args.enable_llm_enrichment)
+        manifest = ingest_manuscript_tier_1(args.input, enable_llm_enrichment=args.enable_llm_enrichment, resume_enrichment=args.resume_enrichment)
         # Write validated JSON manifest
         os.makedirs(os.path.dirname(args.output), exist_ok=True)
         with open(args.output, "w", encoding="utf-8") as f:
