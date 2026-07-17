@@ -173,7 +173,16 @@ async function selectBook(name, el) {
     <div class="row">
       ${[1,2,3].map(n => `<button class="ghost" data-tierprev="${n}" style="padding:5px 14px">Tier ${n}</button>`).join("")}
       <span id="prevTierStatus" class="hint"></span></div>
-    <audio id="prevTierAudio" controls style="display:none; width:100%; margin-top:8px"></audio></div>`;
+    <audio id="prevTierAudio" controls style="display:none; width:100%; margin-top:8px"></audio></div>
+  <div class="card"><h3>Generate audiobook</h3>
+    <div class="row">
+      <select id="renderTier" style="width:auto;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:6px 10px">
+        <option value="1">Tier 1 — single narrator</option>
+        <option value="2">Tier 2 — full cast</option>
+        <option value="3">Tier 3 — full production</option></select>
+      <button id="renderBtn">Generate</button>
+      <span id="renderStatus" class="hint"></span></div>
+    <div id="renderResult" style="margin-top:8px"></div></div>`;
   if (t.book_bible) {
     const bb = t.book_bible;
     html += `<div class="card"><h3>Book Bible</h3><div class="kv">
@@ -205,6 +214,7 @@ async function selectBook(name, el) {
   $("#tree").innerHTML = html || '<div class="empty">no structure artifacts</div>';
   document.querySelectorAll("#tree .sceneRow").forEach(el =>
     el.addEventListener("click", () => selectScene(el.dataset.scene, el)));
+  wireRenderCard();
   document.querySelectorAll("[data-tierprev]").forEach(btn => btn.addEventListener("click", async () => {
     const tier = +btn.dataset.tierprev;
     const status = $("#prevTierStatus");
@@ -229,6 +239,47 @@ async function selectBook(name, el) {
       const sc = el.nextElementSibling;
       if (sc) sc.style.display = sc.style.display === "none" ? "" : "none";
     }));
+}
+
+/* ---------- render job card ---------- */
+let renderPoll = null;
+function describeJob(j) {
+  const links = j.status === "done"
+    ? ` — <a style="color:var(--accent)" href="/api/console/audio?file=${encodeURIComponent(j.output_m4b || j.output_wav)}" download>download ${j.output_m4b ? "M4B" : "WAV"}</a>`
+      + (j.output_m4b && j.output_wav ? ` · <a style="color:var(--dim)" href="/api/console/audio?file=${encodeURIComponent(j.output_wav)}" download>WAV</a>` : "")
+    : "";
+  const err = j.status === "failed" ? ` — <span style="color:var(--bad)">${esc(j.error || "unknown error")}</span>` : "";
+  return `<div class="hint">tier ${j.tier} · <b style="color:${j.status==="done"?"var(--ok)":(j.status==="failed"?"var(--bad)":"var(--warn)")}">${j.status}</b>${links}${err}</div>`;
+}
+async function refreshRenderCard() {
+  if (!state.book) return;
+  try {
+    const r = await api(`/api/console/renders?book=${encodeURIComponent(state.book)}`);
+    const el = $("#renderResult");
+    if (!el) return;
+    el.innerHTML = (r.jobs || []).slice(0, 3).map(describeJob).join("");
+    const active = (r.jobs || []).some(j => j.status === "running" || j.status === "queued");
+    if (!active && renderPoll) { clearInterval(renderPoll); renderPoll = null; }
+  } catch {}
+}
+function wireRenderCard() {
+  refreshRenderCard();
+  const btn = $("#renderBtn");
+  if (!btn) return;
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    $("#renderStatus").textContent = "starting…";
+    try {
+      const r = await fetch("/api/console/render", { method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ book: state.book, tier: +$("#renderTier").value }) });
+      const j = await r.json();
+      $("#renderStatus").textContent = r.ok ? `job ${j.job_id} started — watch the progress chip` : (j.error || "failed");
+      if (r.ok && !renderPoll) renderPoll = setInterval(refreshRenderCard, 5000);
+      refreshRenderCard();
+    } catch (e) { $("#renderStatus").textContent = "failed: " + e.message; }
+    btn.disabled = false;
+  });
 }
 
 /* ---------- scene pane ---------- */

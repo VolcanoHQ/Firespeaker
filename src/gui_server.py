@@ -325,6 +325,9 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
             elif path == "/api/console/trailer_scene":
                 from src import tier_preview
                 payload = tier_preview.pick_trailer_scene(q("book"))
+            elif path == "/api/console/renders":
+                from src import render_job
+                payload = {"jobs": render_job.list_jobs(q("book") or None)}
             elif path == "/api/console/audio":
                 wav = console_api.resolve_audio(q("file"))
                 if not wav:
@@ -383,7 +386,7 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
         parsed_url = urllib.parse.urlparse(self.path)
         path = parsed_url.path
         
-        if path.startswith("/api/marketplace/") or path.startswith("/api/voicestudio/") or path in ("/api/console/correct_speaker", "/api/console/preview_tier"):
+        if path.startswith("/api/marketplace/") or path.startswith("/api/voicestudio/") or path in ("/api/console/correct_speaker", "/api/console/preview_tier", "/api/console/render"):
             try:
                 content_length = int(self.headers.get('Content-Length') or 0)
                 body = json.loads(self.rfile.read(content_length).decode('utf-8')) if content_length else {}
@@ -392,6 +395,23 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
                 return
             if path.startswith("/api/marketplace/"):
                 self.handle_marketplace(path, parsed_url.query, body=body)
+            elif path == "/api/console/render":
+                from src import render_job
+                try:
+                    job = render_job.start_render(
+                        body.get("book", ""), int(body.get("tier", 1)),
+                        owner=body.get("owner", "local"))
+                    code = 200 if job.get("status") != "failed" else 409
+                    resp = json.dumps(job, default=str).encode("utf-8")
+                    self.send_response(code)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(resp)))
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.end_headers()
+                    self.wfile.write(resp)
+                except Exception as e:
+                    logger.error(f"render start error: {e}")
+                    self.send_json_error(500, f"Render error: {e}")
             elif path == "/api/console/preview_tier":
                 from src import tier_preview
                 try:

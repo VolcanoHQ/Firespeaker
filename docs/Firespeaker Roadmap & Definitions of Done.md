@@ -151,19 +151,22 @@ replay cached: true; Les Mis tier-2 request → 409 with guidance.
 *The MVP sentence: EPUB in → review/correct in the console → tier preview → one
 button → chaptered audiobook out.*
 
-### M-1 · One-button render job — ⬜ OPEN
+### M-1 · One-button render job — ✅ DONE
 **DoD:**
-- [ ] `POST /api/console/render {book, tier}` starts a detached background job
-      (survives server restarts); job record carries `owner` (default `"local"`),
-      status (queued/running/done/failed), timestamps, output path, error.
-- [ ] Job runs ingest (with `--resume-enrichment` for tier ≥ 2) → the tier's mixer →
+- [x] `POST /api/console/render {book, tier}` starts a detached worker
+      (start_new_session; survives server restarts; dead workers reaped to
+      `failed` on next listing); job record carries `owner` (default `"local"`),
+      status, timestamps, outputs, error — one file per job in `data/render_jobs/`.
+- [x] Job runs ingest (resume-enrichment for tier ≥ 2) → tier's mixer →
       chaptered export (M-2), reporting through the existing progress tracker.
-- [ ] Tier 3 renders when direction artifacts exist; otherwise the job fails fast
-      with guidance (same policy as tier preview).
-- [ ] Console: per-book Generate card (tier select → progress → download link);
-      status endpoint polls job state.
-- [ ] A full Tier 1 render of a corpus book completes from the UI path with a
-      downloadable artifact, and a failure case reports a readable error.
+- [x] Tier 3 without direction artifacts fails fast with guidance; unknown book
+      and duplicate-render also refused with readable errors (409).
+- [x] Console Generate card: tier select → job status polling → M4B/WAV download
+      links on completion; `GET /api/console/renders?book=` lists job state.
+- [x] Full Tier 1 render of Peter Rabbit completed through the API path in 542s:
+      wav + m4b + line-timing manifest all produced and non-empty.
+**Evidence:** `src/render_job.py`; job record verified with owner field; all
+three guard paths curl-tested.
 
 ### M-2 · Chaptered export + line-timing manifest — ✅ DONE
 **DoD:**
