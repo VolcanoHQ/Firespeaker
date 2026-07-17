@@ -165,17 +165,21 @@ button → chaptered audiobook out.*
 - [ ] A full Tier 1 render of a corpus book completes from the UI path with a
       downloadable artifact, and a failure case reports a readable error.
 
-### M-2 · Chaptered export + line-timing manifest — ⬜ OPEN
+### M-2 · Chaptered export + line-timing manifest — ✅ DONE
 **DoD:**
-- [ ] Voice-track mixers (Tier 1/2) write `line_timings.json` next to the master:
-      per line `{line_id, character, chapter, start_s, end_s}` — offsets measured,
-      not estimated.
-- [ ] M4B export with real chapter markers (ffmetadata) from the same offsets;
-      chapter titles from the manifest.
-- [ ] Round-trip verified: chapter count in the M4B == manifest chapter count;
-      spot-checked line timing lands on the right audio (±100 ms).
-- [ ] Tier 2 voice-track assembly exists (per-character voices, no music/SFX) —
-      previously only Tier 1 concat and Tier 3 full-mix existed.
+- [x] Voice-track mixers (Tier 1/2) write `{output}.line_timings.json`:
+      per line `{line_id, character, chapter_id, start_s, end_s}` — offsets MEASURED
+      from each line wav's real duration during assembly.
+- [x] M4B export (`export_m4b`, AAC 96k, ipod container) with real chapter markers
+      from the same offsets; chapter titles from the manifest.
+- [x] Round-trip verified: 3-chapter test manifest → M4B chapter times matched the
+      timing manifest to the ms (166.688s / 286.677s); manifest duration matched the
+      wav ±0.1s; offsets monotonic; a Mr. McGregor dialogue line's start offset
+      contained speech energy (−21 dB, not silence).
+- [x] Tier 2 voice-track assembly (`mix_tier2` / `--tier2`): attributed cast voices,
+      auto-registered drawers for unseen speakers; 4-speaker timing manifest produced.
+**Evidence:** shared `mix_voice_track` engine; console audio serving extended to
+`.m4b`/`.mp3` for downloads.
 
 ### M-3 · EPUB ingestion — ⬜ OPEN
 **DoD:**

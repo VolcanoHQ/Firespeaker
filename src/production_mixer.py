@@ -406,14 +406,15 @@ def assemble_scene(scene_id: str, line_wavs: List[Tuple[str, Dict[str, Any]]], d
 # Orchestration
 # ----------------------------------------------------
 
-def mix_tier1(manifest_path: str, output_path: str) -> Dict[str, Any]:
-    """Tier 1 assembly: the whole manuscript read by ONE narrator voice.
+def mix_voice_track(manifest_path: str, output_path: str, single_narrator: bool) -> Dict[str, Any]:
+    """Voice-track assembly shared by Tier 1 (one narrator) and Tier 2 (cast).
 
-    No music, no SFX, no per-character casting -- every line (dialogue included)
-    is synthesized as the Narrator drawer, concatenated in manuscript order with
-    each line's own post_padding, an extra beat between chapters, then the same
-    ACX mastering chain as Tier 3. Line-level emotion is kept: it modulates the
-    narrator's pitch/speed slightly (a single voice with cadence, not a cast).
+    Lines are synthesized (or cache-hit), concatenated in manuscript order with
+    each line's own post_padding and a beat between chapters, then ACX-mastered.
+    While assembling, every line's real start/end offset is MEASURED from its wav
+    duration and written to {output}.line_timings.json -- the data a synced
+    read-along transcript, chapter markers, and Chain F cut lists all need.
+    An .m4b with real chapter markers is exported next to the wav.
     """
     with open(manifest_path, "r", encoding="utf-8") as f:
         manifest = ManuscriptManifest.model_validate_json(f.read())
@@ -421,39 +422,63 @@ def mix_tier1(manifest_path: str, output_path: str) -> Dict[str, Any]:
 
     from src.voice_synthesizer import VoiceSynthesizer
     synth = VoiceSynthesizer(force_cpu=True)
-    if not synth.palace.get_character_drawer("Narrator"):
-        synth.palace.register_character(
-            character_name="Narrator",
-            voice_ref_path="data/voice_references/narrator_mono.wav",
-            speed=1.0, pitch=0.0,
-        )
+    needed = {"Narrator"} if single_narrator else {
+        l.character for p in manifest.parts for c in p.chapters for s in c.scenes for l in s.lines}
+    for char in sorted(needed):
+        if not synth.palace.get_character_drawer(char):
+            logger.info(f"Registering drawer for '{char}' (builtin voice via name-hash pool).")
+            synth.palace.register_character(
+                character_name=char,
+                voice_ref_path="data/voice_references/narrator_mono.wav",
+                speed=1.0, pitch=0.0,
+            )
 
     os.makedirs(WORKSPACE, exist_ok=True)
     from src import progress as _progress
     total_scenes = sum(len(ch.scenes) for p in manifest.parts for ch in p.chapters)
     done = 0
+    stage = "tier1_narration" if single_narrator else "tier2_narration"
 
     CHAPTER_GAP_MS = 1500
-    segments: List[Tuple[str, int]] = []  # (wav_path, trailing_silence_ms)
+    segments: List[Tuple[str, int]] = []          # (wav_path, trailing_silence_ms)
+    timing_lines: List[Dict[str, Any]] = []       # measured offsets, filled below
+    chapter_marks: List[Dict[str, Any]] = []      # (chapter_id, title, first segment index)
     for part in manifest.parts:
         for chapter in part.chapters:
+            chapter_marks.append({"chapter_id": chapter.chapter_id, "title": chapter.title,
+                                  "segment_index": len(segments)})
             for scene in chapter.scenes:
                 lines = []
                 for l in scene.lines:
                     d = l.model_dump()
-                    d["character"] = "Narrator"
-                    d["speaker_id"] = "char_narrator"
+                    if single_narrator:
+                        d["character"] = "Narrator"
+                        d["speaker_id"] = "char_narrator"
                     lines.append(d)
                 done += 1
-                _progress.report(book_stem, "tier1_narration", done, total_scenes, scene.scene_id)
+                _progress.report(book_stem, stage, done, total_scenes, scene.scene_id)
                 for wav, line in resolve_line_wavs(lines, synth):
                     segments.append((wav, int(line.get("post_padding_ms") or 0)))
+                    timing_lines.append({"line_id": line["line_id"], "character": line["character"],
+                                         "chapter_id": chapter.chapter_id})
             if segments:
                 segments[-1] = (segments[-1][0], segments[-1][1] + CHAPTER_GAP_MS)
-    _progress.finish(book_stem, "tier1_narration")
+    _progress.finish(book_stem, stage)
 
     if not segments:
         raise RuntimeError("Manifest produced no narration lines.")
+
+    # Measure real offsets segment by segment (wav duration + its padding).
+    cursor = 0.0
+    chapter_starts: Dict[int, float] = {}
+    for i, (wav, pad_ms) in enumerate(segments):
+        chapter_starts.setdefault(i, cursor)
+        dur = _wav_duration(wav)
+        timing_lines[i]["start_s"] = round(cursor, 3)
+        timing_lines[i]["end_s"] = round(cursor + dur, 3)
+        cursor += dur + pad_ms / 1000.0
+    for cm in chapter_marks:
+        cm["start_s"] = round(chapter_starts.get(cm.pop("segment_index"), 0.0), 3)
 
     # Concat with per-line trailing silence. Silence chunks are generated once per
     # distinct duration at the voice track's own sample format so stream params match.
@@ -482,8 +507,58 @@ def mix_tier1(manifest_path: str, output_path: str) -> Dict[str, Any]:
     mixer = AudioMixer()
     mixer.apply_post_mastering(output_path, profile_name="standard")
     compliance = mixer.verify_acx_compliance(output_path)
-    logger.info(f"Tier 1 narration master: {output_path} ({_wav_duration(output_path)/60:.1f} min, {len(segments)} lines)")
-    return {"output": output_path, "lines": len(segments), "acx": compliance}
+
+    total = _wav_duration(output_path)
+    timings_path = os.path.splitext(output_path)[0] + ".line_timings.json"
+    with open(timings_path, "w", encoding="utf-8") as f:
+        json.dump({"book": book_stem, "tier": 1 if single_narrator else 2,
+                   "duration_s": round(total, 3), "chapters": chapter_marks,
+                   "lines": timing_lines}, f, indent=2)
+    m4b_path = export_m4b(output_path, chapter_marks, total, title=book_stem)
+
+    logger.info(f"{'Tier 1' if single_narrator else 'Tier 2'} voice master: {output_path} "
+                f"({total/60:.1f} min, {len(segments)} lines, {len(chapter_marks)} chapters)")
+    return {"output": output_path, "lines": len(segments), "acx": compliance,
+            "timings": timings_path, "m4b": m4b_path, "chapters": len(chapter_marks)}
+
+
+def mix_tier1(manifest_path: str, output_path: str) -> Dict[str, Any]:
+    """Tier 1: the whole manuscript read by ONE narrator voice (no music/SFX/cast)."""
+    return mix_voice_track(manifest_path, output_path, single_narrator=True)
+
+
+def mix_tier2(manifest_path: str, output_path: str) -> Dict[str, Any]:
+    """Tier 2: narrator + attributed character voices (no music/SFX). Speakers
+    without a MemPalace drawer get a distinct builtin voice via the name-hash pool."""
+    return mix_voice_track(manifest_path, output_path, single_narrator=False)
+
+
+def export_m4b(master_wav: str, chapters: List[Dict[str, Any]], total_s: float,
+               title: str = "") -> Optional[str]:
+    """Audiobook container: AAC .m4b with REAL chapter markers (ffmetadata),
+    chapter titles from the manifest. Returns the m4b path, or None if the
+    encode fails (the wav master always remains the source of truth)."""
+    meta = os.path.splitext(master_wav)[0] + ".ffmeta"
+    with open(meta, "w", encoding="utf-8") as f:
+        f.write(";FFMETADATA1\n")
+        if title:
+            f.write(f"title={title}\nalbum={title}\nartist=Volcano Studios\n")
+        for i, ch in enumerate(chapters):
+            start_ms = int(ch["start_s"] * 1000)
+            end_ms = int((chapters[i + 1]["start_s"] if i + 1 < len(chapters) else total_s) * 1000)
+            f.write(f"\n[CHAPTER]\nTIMEBASE=1/1000\nSTART={start_ms}\nEND={end_ms}\n"
+                    f"title={ch.get('title') or ch.get('chapter_id')}\n")
+    out = os.path.splitext(master_wav)[0] + ".m4b"
+    try:
+        _run_ffmpeg(["-i", master_wav, "-i", meta, "-map", "0:a", "-map_metadata", "1",
+                     "-c:a", "aac", "-b:a", "96k", "-f", "ipod", out])
+    except Exception as e:
+        logger.warning(f"M4B export failed ({e}); the wav master stands alone.")
+        return None
+    finally:
+        if os.path.exists(meta):
+            os.remove(meta)
+    return out if os.path.exists(out) and os.path.getsize(out) > 0 else None
 
 
 def mix_production(manifest_path: str, output_path: str) -> Dict[str, Any]:
@@ -647,10 +722,12 @@ def main():
     parser.add_argument("--manifest", type=str, required=True, help="ManuscriptManifest JSON (Tier 3 additionally needs scene_director artifacts)")
     parser.add_argument("--output", type=str, required=True, help="Output master WAV path")
     parser.add_argument("--tier1", action="store_true", help="Single-narrator audiobook: one voice, no music/SFX/casting")
+    parser.add_argument("--tier2", action="store_true", help="Narrator + attributed character voices, no music/SFX")
     args = parser.parse_args()
-    if args.tier1:
-        result = mix_tier1(args.manifest, args.output)
-        print(f"\nTier 1 narration master: {result['output']} | lines: {result['lines']}")
+    if args.tier1 or args.tier2:
+        result = mix_voice_track(args.manifest, args.output, single_narrator=args.tier1)
+        print(f"\nTier {'1' if args.tier1 else '2'} voice master: {result['output']} | lines: {result['lines']} | chapters: {result['chapters']}")
+        print(f"Timings: {result['timings']} | M4B: {result['m4b']}")
     else:
         result = mix_production(args.manifest, args.output)
         print(f"\nTier 3 master: {result['output']} | scenes: {result['scenes']}")

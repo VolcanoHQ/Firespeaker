@@ -290,9 +290,9 @@ def progress() -> Dict[str, Any]:
 
 
 def resolve_audio(rel_path: str) -> Optional[str]:
-    """Whitelisted audition: the file must resolve inside one of the allowed
-    directories and be a .wav. Returns the absolute path or None."""
-    if not rel_path or not rel_path.endswith(".wav"):
+    """Whitelisted audition/download: the file must resolve inside one of the
+    allowed directories and be an audio deliverable. Returns abs path or None."""
+    if not rel_path or not rel_path.endswith((".wav", ".m4b", ".mp3")):
         return None
     abs_path = os.path.abspath(rel_path)
     for allowed in AUDIO_WHITELIST:
