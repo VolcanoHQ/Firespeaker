@@ -203,12 +203,23 @@ HTMLParser); `.epub` accepted by the parser CLI and the render job's source find
 
 ## Tier 2 — post-MVP (OPEN, in build order)
 
-### T2-1 · User management foundation — ⬜ OPEN
-**DoD:** Lightweight auth (magic-link or OAuth); session on every studio surface; the
-server refuses unauthenticated API access when auth is enabled; existing `owner`
-fields map to real user ids with a migration for `"local"`.
-*Note: launch gate for any non-local marketplace exposure — jumps the queue if the
-marketplace goes public first. Until then the server must remain local-only.*
+### T2-1 · User management foundation — ✅ DONE
+**DoD:**
+- [x] Magic-link auth (`src/user_db.py`): single-use 15-min codes; until SMTP is
+      configured the link lands in `data/outbox/` (same flow, different transport);
+      users + 30-day sessions in SQLite; code reuse refused.
+- [x] Session on every studio surface: `/login` page; `/api/auth/request_link·
+      redeem·me·logout`; HttpOnly SameSite cookie.
+- [x] `FIRESPEAKER_AUTH=on` refuses unauthenticated access everywhere (API → 401,
+      pages → 302 to /login); OFF (default) is byte-identical legacy behavior —
+      both modes regression-tested live.
+- [x] `owner` mapping: render jobs stamped with the session's user id
+      (`u_cca8c2df2447` verified on a live job); `claim-local --email` migrated the
+      pre-auth `"local"` job to the user (2/2 jobs owned post-migration).
+**Evidence:** full curl-tested flow: gate 401/302 → link issued → outbox code →
+redeem → cookie → me → API 200 → logout → 401.
+*Note: still a launch gate for any non-local marketplace exposure; the server
+remains local-only until auth is hardened (HTTPS, rate limits) — tracked in T2-5.*
 
 ### T2-2 · User-owned projects — ⬜ OPEN
 **DoD:** `project_db` project records own books/renders/exports; console scopes to the

@@ -129,10 +129,106 @@ def bg_run_pipeline(filename: str, tier: int = 1, user_tier: str = "free"):
 class StudioRequestHandler(BaseHTTPRequestHandler):
     """Handles REST API requests and serves the studio Single-Page Application."""
 
+    # ------------------------------------------------------------------
+    # Auth (T2-1): OFF by default -- identical legacy behavior, owner "local".
+    # FIRESPEAKER_AUTH=on refuses unauthenticated API access on every surface.
+    # ------------------------------------------------------------------
+    _AUTH_EXEMPT = ("/login", "/api/auth/")
+
+    def _current_user(self):
+        from src import user_db
+        cookies = self.headers.get("Cookie") or ""
+        for part in cookies.split(";"):
+            if "=" in part:
+                k, v = part.strip().split("=", 1)
+                if k == user_db.COOKIE_NAME:
+                    return user_db.session_user(v)
+        return None
+
+    def _owner(self):
+        user = self._current_user()
+        return user["user_id"] if user else "local"
+
+    def _auth_gate(self, path) -> bool:
+        """True = allowed to proceed. When auth is on, everything except the
+        login surface requires a valid session (401 for APIs, 302 for pages)."""
+        from src import user_db
+        if not user_db.auth_enabled():
+            return True
+        if any(path == e or path.startswith(e) for e in self._AUTH_EXEMPT):
+            return True
+        if self._current_user():
+            return True
+        if path.startswith("/api/"):
+            self.send_json_error(401, "Authentication required")
+        else:
+            self.send_response(302)
+            self.send_header("Location", "/login")
+            self.end_headers()
+        return False
+
+    def handle_auth(self, path, query_string, body=None):
+        from src import user_db
+        params = urllib.parse.parse_qs(query_string or "")
+        q = lambda k: (params.get(k) or [""])[0]
+        body = body or {}
+        if path == "/api/auth/request_link":
+            ok = user_db.request_login(body.get("email", ""))
+            if not ok:
+                self.send_json_error(400, "Valid email required")
+                return
+            payload, cookie = {"sent": True, "note": f"Dev outbox: {user_db.OUTBOX_DIR}/"}, None
+        elif path == "/api/auth/redeem":
+            session = user_db.redeem_code(q("code") or body.get("code", ""))
+            if not session:
+                self.send_json_error(400, "Invalid or expired code")
+                return
+            cookie = (f"{user_db.COOKIE_NAME}={session['token']}; Path=/; HttpOnly; "
+                      f"SameSite=Lax; Max-Age={user_db.SESSION_TTL_S}")
+            if self.command == "GET":
+                self.send_response(302)
+                self.send_header("Set-Cookie", cookie)
+                self.send_header("Location", "/console")
+                self.end_headers()
+                return
+            payload = {"email": session["email"], "user_id": session["user_id"]}
+        elif path == "/api/auth/me":
+            user = self._current_user()
+            if not user:
+                self.send_json_error(401, "Not signed in")
+                return
+            payload, cookie = user, None
+        elif path == "/api/auth/logout":
+            cookies = self.headers.get("Cookie") or ""
+            for part in cookies.split(";"):
+                if part.strip().startswith(user_db.COOKIE_NAME + "="):
+                    user_db.logout(part.strip().split("=", 1)[1])
+            payload = {"signed_out": True}
+            cookie = f"{user_db.COOKIE_NAME}=; Path=/; Max-Age=0"
+        else:
+            self.send_json_error(404, "Unknown auth endpoint")
+            return
+        resp = json.dumps(payload).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(resp)))
+        if cookie:
+            self.send_header("Set-Cookie", cookie)
+        self.end_headers()
+        self.wfile.write(resp)
+
     def do_GET(self):
         parsed_url = urllib.parse.urlparse(self.path)
         path = parsed_url.path
-        
+
+        if path.startswith("/api/auth/"):
+            self.handle_auth(path, parsed_url.query)
+            return
+        if path == "/login":
+            self.serve_static_file("src/static/login.html", "text/html")
+            return
+        if not self._auth_gate(path):
+            return
         if path == "/" or path == "/index.html":
             self.serve_static_file("src/static/index.html", "text/html")
         elif path == "/console":
@@ -385,7 +481,17 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         parsed_url = urllib.parse.urlparse(self.path)
         path = parsed_url.path
-        
+
+        if path.startswith("/api/auth/"):
+            try:
+                content_length = int(self.headers.get('Content-Length') or 0)
+                body = json.loads(self.rfile.read(content_length).decode('utf-8')) if content_length else {}
+            except Exception:
+                body = {}
+            self.handle_auth(path, parsed_url.query, body=body)
+            return
+        if not self._auth_gate(path):
+            return
         if path.startswith("/api/marketplace/") or path.startswith("/api/voicestudio/") or path in ("/api/console/correct_speaker", "/api/console/preview_tier", "/api/console/render"):
             try:
                 content_length = int(self.headers.get('Content-Length') or 0)
@@ -400,7 +506,7 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
                 try:
                     job = render_job.start_render(
                         body.get("book", ""), int(body.get("tier", 1)),
-                        owner=body.get("owner", "local"))
+                        owner=self._owner())
                     code = 200 if job.get("status") != "failed" else 409
                     resp = json.dumps(job, default=str).encode("utf-8")
                     self.send_response(code)

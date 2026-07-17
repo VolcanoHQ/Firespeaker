@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in — Volcano Studios</title>
+<style>
+  :root { --bg:#16181d; --panel:#1e2128; --panel2:#23272f; --line:#2e333d;
+          --text:#d6dae2; --dim:#8b91a0; --accent:#e8734a; --ok:#5fb878; --bad:#d96a6a; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font:14px/1.55 "Segoe UI",system-ui,sans-serif;
+         min-height:100vh; display:flex; align-items:center; justify-content:center; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px;
+          padding:32px; width:min(400px, 92vw); }
+  h1 { font-size:18px; margin-bottom:4px; } h1 span { color:var(--accent); }
+  .sub { color:var(--dim); font-size:12.5px; margin-bottom:22px; }
+  label { display:block; color:var(--dim); font-size:12px; margin:14px 0 4px; }
+  input { width:100%; background:var(--panel2); color:var(--text); border:1px solid var(--line);
+          border-radius:6px; padding:9px 11px; font:inherit; }
+  button { width:100%; margin-top:16px; background:var(--accent); border:none; color:#fff;
+           font:inherit; font-weight:600; padding:10px; border-radius:7px; cursor:pointer; }
+  button:disabled { opacity:.5; }
+  .msg { margin-top:14px; font-size:12.5px; color:var(--dim); }
+  .msg.ok { color:var(--ok); } .msg.err { color:var(--bad); }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>VOLCANO <span>STUDIOS</span></h1>
+  <div class="sub">Sign in with your email. A single-use link is issued —
+    until outgoing mail is configured it lands in <code>data/outbox/</code> on the server.</div>
+  <label>Email</label>
+  <input type="email" id="email" placeholder="you@example.com" autocomplete="email">
+  <button id="sendBtn">Send sign-in link</button>
+  <label style="margin-top:20px">…or paste the code from the link</label>
+  <input type="text" id="code" placeholder="paste code here">
+  <button id="redeemBtn" class="ghost">Sign in with code</button>
+  <div class="msg" id="msg"></div>
+</div>
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const msg = (t, cls) => { const m = $("#msg"); m.textContent = t; m.className = "msg " + (cls || ""); };
+$("#sendBtn").addEventListener("click", async () => {
+  $("#sendBtn").disabled = true;
+  try {
+    const r = await fetch("/api/auth/request_link", { method:"POST",
+      headers:{"Content-Type":"application/json"}, body: JSON.stringify({ email: $("#email").value }) });
+    const j = await r.json();
+    msg(r.ok ? "Link issued — check the dev outbox (data/outbox/) and open it, or paste the code below." : (j.error || "failed"), r.ok ? "ok" : "err");
+  } catch (e) { msg("failed: " + e.message, "err"); }
+  $("#sendBtn").disabled = false;
+});
+$("#redeemBtn").addEventListener("click", async () => {
+  let code = $("#code").value.trim();
+  const m = code.match(/code=([\w\-~.]+)/); if (m) code = m[1];
+  if (!code) { msg("paste the code or the whole link", "err"); return; }
+  try {
+    const r = await fetch("/api/auth/redeem", { method:"POST",
+      headers:{"Content-Type":"application/json"}, body: JSON.stringify({ code }) });
+    if (r.ok) { location.href = "/console"; return; }
+    const j = await r.json();
+    msg(j.error || "invalid code", "err");
+  } catch (e) { msg("failed: " + e.message, "err"); }
+});
+</script>
+</body>
+</html>

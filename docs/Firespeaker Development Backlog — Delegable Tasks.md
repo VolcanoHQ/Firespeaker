@@ -160,6 +160,22 @@ RED = keep on frontier models (architecture, prompt design, forensic debugging).
 
 ## RED — keep on frontier models
 
+- **TODO (2026-07-17, from user listening review of the Case of Identity Tier 3
+  trailer preview): narrated-action foley coverage.** When the narration walks
+  through a physical transition — entering the manor's front door, crossing a
+  threshold, footsteps changing surface — the mix should carry the implied
+  sounds (door opens/closes under and synced with the narration), both as
+  one-shot foley events and as background-state changes (interior acoustics
+  after the door shuts). Today AI-7's sound design leans on explicit/atmospheric
+  sound and the loopE cues require verbatim onomatopoeia, so mundane
+  action-implied foley (doors, latches, footsteps, chairs) is under-covered.
+  Investigate: (a) whether AI-7's prompt asks for action-implied foley at all;
+  (b) a deterministic "action foley spotter" pre-pass over narration verbs
+  (opened/closed/knocked/entered/climbed/sat) that proposes anchored candidate
+  events for AI-7 to direct — grounding stays enforceable because the verb
+  anchor is verbatim text; (c) whether environment state (indoors/outdoors)
+  should switch the ambience bed at the same anchor.
+
 - Beat-directed dramatization (per-beat targeted prompting; creative-prompt design
   against measured beat-coverage gaps).
 - Any new crew role or change to existing role prompts/validation semantics.
