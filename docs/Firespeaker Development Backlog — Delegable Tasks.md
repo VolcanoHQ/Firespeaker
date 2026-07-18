@@ -160,8 +160,16 @@ RED = keep on frontier models (architecture, prompt design, forensic debugging).
 
 ## RED — keep on frontier models
 
-- **TODO (2026-07-17, from user listening review of the Case of Identity Tier 3
-  trailer preview): narrated-action foley coverage.** When the narration walks
+- **PARTIALLY DONE (spotter shipped 2026-07-18; ambience-state switching remains):
+  narrated-action foley coverage** (from user listening review, 2026-07-17).
+  Items (a)+(b) landed: `_spot_action_foley` in scene_director.py — a deterministic
+  17-pattern verb lexicon over narrative lines feeds AI-7 grounded candidates
+  ("NARRATED PHYSICAL ACTIONS" prompt section, events cap 5→8). Measured on the
+  Case trailer scene: 4→8 events, including the full door-entry arc (knock, latch,
+  footsteps entering, door closing) the review called out. REMAINING (c): ambience
+  STATE switching at transitions (interior acoustics after the door shuts) — needs
+  segmented ambience beds in the mixer, same pattern as the music state machine.
+  Original note: When the narration walks
   through a physical transition — entering the manor's front door, crossing a
   threshold, footsteps changing surface — the mix should carry the implied
   sounds (door opens/closes under and synced with the narration), both as

@@ -109,11 +109,65 @@ class SceneSoundDesign(BaseModel):
     events: List[CompositeSoundEvent] = Field(default_factory=list)
 
 
+# Narrated-action foley lexicon (from the user's Tier 3 trailer listening review:
+# "when they enter the front door of the manor, we should hear the door" -- the
+# Sound Designer caught explicit sound-words but missed action-implied foley).
+# Each entry: (regex over NARRATIVE text, suggested foley idea handed to AI-7).
+_ACTION_FOLEY_PATTERNS: List[Tuple[str, str]] = [
+    (r"\b(?:open(?:ed|ing)?|closed?|closing|shut|slam\w*)\b[^.]{0,40}\bdoors?\b", "door opening/closing (latch, hinge, frame)"),
+    (r"\bdoors?\b[^.]{0,40}\b(?:open(?:ed|ing)?|closed?|shut|slam\w*)\b", "door opening/closing (latch, hinge, frame)"),
+    (r"\b(?:knock\w*|tap\w*|rapp?\w*)\b[^.]{0,30}\bdoor\b", "knuckles rapping on a wooden door"),
+    (r"\brang\b[^.]{0,30}\bbell\b|\bbell\b[^.]{0,30}\brang\b", "a hand bell or doorbell ringing"),
+    (r"\benter(?:ed|ing)\b|\bcame? in(?:to)?\b|\bushered\b|\bshown (?:in|into)\b", "door + footsteps entering a room"),
+    (r"\b(?:left|leaving|departed|withdrew|hurried) (?:the )?(?:room|house|office|chamber)\b", "footsteps leaving + door"),
+    (r"\bfootsteps?\b|\bpaced?\b|\bpacing\b|\bcrossed the room\b|\bwalk(?:ed|ing) (?:across|over|to)\b", "footsteps on the room's floor surface"),
+    (r"\b(?:sat|seated) (?:down|himself|herself)\b|\bsank into\b[^.]{0,25}\b(?:chair|seat|sofa)\b", "chair creak and clothing rustle, sitting"),
+    (r"\brose\b[^.]{0,20}\b(?:from|to his feet|to her feet)\b|\bstood up\b|\bsprang (?:up|to)\b", "chair shift and fabric movement, standing"),
+    (r"\b(?:climb|ascend|descend)\w*\b[^.]{0,25}\bstair", "footsteps on stairs"),
+    (r"\bstruck a match\b|\blit (?:a|his|her|the) (?:pipe|candle|lamp|cigarette)\b", "match strike and flare"),
+    (r"\bpour(?:ed|ing)\b[^.]{0,30}\b(?:tea|wine|water|brandy|whisky|coffee)\b", "liquid pouring into a cup or glass"),
+    (r"\b(?:unfolded|folded|tore|crumpled|opened)\b[^.]{0,30}\b(?:letter|paper|note|envelope|telegram)\b", "paper being handled"),
+    (r"\b(?:carriage|cab|hansom|wheels)\b[^.]{0,40}\b(?:drew up|rattl\w*|arriv\w*|stopp\w*|rolled)\b", "carriage wheels and hooves on cobblestones"),
+    (r"\bwindow\b[^.]{0,35}\b(?:open\w*|closed?|shut|threw|raised)\b", "sash window sliding open or closed"),
+    (r"\bfire\b[^.]{0,25}\b(?:crackl\w*|blaz\w*|burn\w*)\b|\bpoker\w*\b[^.]{0,20}\bfire\b", "fireplace crackle and a stirred grate"),
+]
+
+
+def _spot_action_foley(lines: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Deterministic pre-pass over NARRATIVE lines: physical actions the narration
+    walks through are implied foley even without an onomatopoeia. Zero LLM cost;
+    grounding is free because the anchor sentence IS verbatim line text. AI-7
+    directs (or prunes) the candidates -- the spotter proposes, never decides."""
+    candidates = []
+    seen = set()
+    for i, l in enumerate(lines):
+        if l.get("segment_type") == "dialogue":
+            continue  # dialogue mentions ("I banged the door") are recollections, not scene foley
+        text = l.get("text", "")
+        for pattern, idea in _ACTION_FOLEY_PATTERNS:
+            m = re.search(pattern, text, re.IGNORECASE)
+            if not m:
+                continue
+            sent_start = text.rfind(".", 0, m.start()) + 1
+            sent_end = text.find(".", m.end())
+            sentence = text[sent_start:sent_end + 1 if sent_end != -1 else len(text)].strip()
+            key = (i, idea)
+            if key in seen or not sentence:
+                continue
+            seen.add(key)
+            candidates.append({"anchor_line_index": i, "source_text": sentence[:160], "suggestion": idea})
+    return candidates[:8]
+
+
 def design_scene_sound(scene_id: str, scene_text: str, lines: List[Dict[str, Any]], spotting: Optional[Dict[str, Any]] = None, bible: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
     """Layered sound decomposition for one scene: continuous ambience components plus
     composite (multi-layer) sound events, including emotionally-directed creature
     sounds. Grounded: every event's source_text must exist verbatim in the scene."""
     line_listing = "\n".join(f'{i}: [{l["character"]}] "{l["text"][:80]}"' for i, l in enumerate(lines))
+    action_candidates = _spot_action_foley(lines)
+    action_listing = "\n".join(
+        f'- line {c["anchor_line_index"]}: "{c["source_text"]}" -> consider: {c["suggestion"]}'
+        for c in action_candidates) or "(none detected)"
 
     spotting = spotting or {}
     prompt = f"""You are the SOUND DESIGNER for a Graphic-Audio-style full-cast audiobook production.
@@ -131,10 +185,16 @@ LINES (index: [speaker] "text"):
 SPOTTED SOUND MOMENTS (from the spotting session):
 {_moments_listing(spotting.get("sound_moments", []))}
 
+NARRATED PHYSICAL ACTIONS (detected deterministically -- when the narration walks a
+character through a physical action, the audience should HEAR it even though the text
+names no sound: a door being entered means a door we hear. Direct the ones that merit
+sound as full layered events; silently drop any that don't serve the scene):
+{action_listing}
+
 Return JSON:
 1. "continuous_ambience": list of 1-3 ongoing background sound components for this scene's
    setting (e.g. "soft birdsong in distant trees", "wind through garden leaves").
-2. "events": list of 0-5 composite sound events, each:
+2. "events": list of 0-8 composite sound events, each:
    - "name": short descriptive name
    - "anchor_line_index": which line the sound accompanies (int from the list above)
    - "source_text": the VERBATIM scene text motivating it (copied exactly, for validation)
