@@ -12,7 +12,7 @@
     --gemini: #6ea8fe; --groq: #f0a13c; --ollama: #b78bf0; --review: #5fb878;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: var(--bg); color: var(--text); font: 13px/1.5 "Segoe UI", system-ui, sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+    body { background: var(--bg); color: var(--text); font: 13px/1.5 "Segoe UI", system-ui, sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
   header { display: flex; align-items: center; gap: 14px; padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line); flex: 0 0 auto; }
   header h1 { font-size: 15px; font-weight: 600; letter-spacing: .4px; }
   header h1 span { color: var(--accent); }
@@ -93,6 +93,40 @@
   .mergeGroup b { color: var(--accent2); }
   audio { display: none; }
   @keyframes rot { to { transform: rotate(360deg); } }
+
+  /* ---------- mixer dock ---------- */
+  #mixerDock { flex: 0 0 auto; background: var(--panel); border-top: 2px solid var(--accent);
+    display: none; flex-direction: column; max-height: 46vh; }
+  #mixerDock.open { display: flex; }
+  #mixerHead { display: flex; align-items: center; gap: 12px; padding: 6px 14px;
+    border-bottom: 1px solid var(--line); font-size: 12px; }
+  #mixerHead b { color: var(--accent2); }
+  #mixerBody { overflow: auto; padding: 8px 0 12px; }
+  .laneRow2 { display: flex; align-items: stretch; min-height: 34px; border-bottom: 1px solid #22262e; }
+  .laneHead { flex: 0 0 120px; display: flex; align-items: center; gap: 6px; padding: 0 10px;
+    font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: .6px;
+    border-right: 1px solid var(--line); position: sticky; left: 0; background: var(--panel); z-index: 2; }
+  .laneMute { cursor: pointer; border: 1px solid var(--line); border-radius: 4px; padding: 0 5px;
+    font-size: 10px; color: var(--dim); background: none; }
+  .laneMute.on { color: var(--bad); border-color: var(--bad); }
+  .laneTrack { position: relative; flex: 1 1 auto; min-width: 600px; }
+  .blk { position: absolute; top: 4px; bottom: 4px; border-radius: 4px; font-size: 10px;
+    overflow: hidden; white-space: nowrap; padding: 2px 5px; cursor: pointer; color: #fff;
+    border: 1px solid rgba(255,255,255,.15); }
+  .blk.voice { background: #2f3d55; } .blk.voice.narr { background: #262c38; color: var(--dim); }
+  .blk.voice.est { opacity: .55; border-style: dashed; }
+  .blk.music { background: #4a3a5f; } .blk.stinger { background: #6b4a8f; min-width: 8px; }
+  .blk.amb { background: #2f4a38; }
+  .blk.sfx { background: #7a4a2a; } .blk.sfx.creature { background: #8a6a2a; }
+  .blk.muted { opacity: .3; text-decoration: line-through; }
+  .blk .g { color: var(--accent2); }
+  #evEditor { position: absolute; z-index: 30; background: var(--panel2); border: 1px solid var(--accent);
+    border-radius: 8px; padding: 10px 12px; width: 280px; font-size: 12px; box-shadow: 0 6px 24px rgba(0,0,0,.5); }
+  #evEditor label { margin: 6px 0 2px; }
+  #evEditor input[type=range] { width: 100%; }
+  #timeRuler { position: relative; height: 16px; margin-left: 120px; min-width: 600px;
+    border-bottom: 1px solid var(--line); font-size: 9px; color: var(--dim); }
+  #timeRuler span { position: absolute; top: 1px; }
 </style>
 </head>
 <body>
@@ -113,6 +147,15 @@
   <div id="scenePane" class="pane">
     <div id="sceneView"><div class="empty">select a scene</div></div>
   </div>
+</div>
+<div id="mixerDock">
+  <div id="mixerHead">
+    <b>SCENE MIXER</b><span id="mixTitle" class="hint"></span>
+    <button class="ghost" id="mixRemix" style="padding:3px 12px;font-size:11px">Re-mix scene</button>
+    <span id="mixStatus" class="hint"></span>
+    <button class="ghost" id="mixClose" style="margin-left:auto;padding:3px 10px;font-size:11px">✕</button>
+  </div>
+  <div id="mixerBody"><div id="timeRuler"></div><div id="mixLanes"></div></div>
 </div>
 <audio id="player"></audio>
 <script>
@@ -334,7 +377,8 @@ function renderScene() {
   const hasLane = d.direction || d.sound_design || d.dramatization || (d.sfx_cues||[]).length;
   const tabs = [["transcript","Transcript"], ["lane","Production Lane" + (hasLane ? "" : " (empty)")], ["text","Scene Text"]];
   let html = `<div id="sceneHeader"><h2>${esc(d.scene_id)}</h2>
-    <span class="prov">${d.lines.length} lines · ${d.lines.filter(l=>l.segment_type==="dialogue").length} dialogue</span></div>
+    <span class="prov">${d.lines.length} lines · ${d.lines.filter(l=>l.segment_type==="dialogue").length} dialogue</span>
+    <button class="ghost" id="openMixerBtn" style="padding:3px 12px;font-size:11.5px">🎚 Mixer</button></div>
     <div class="tabs">` + tabs.map(([id, label]) =>
       `<div class="tab ${state.tab===id?"active":""}" data-tab="${id}">${label}</div>`).join("") + `</div>`;
 
@@ -343,6 +387,8 @@ function renderScene() {
   else html += `<div class="card" style="white-space:pre-wrap">${esc(d.scene_text)}</div>`;
 
   $("#sceneView").innerHTML = html;
+  const mb = $("#openMixerBtn");
+  if (mb) mb.addEventListener("click", openMixer);
   if (state.tab === "transcript") wireCorrections(d);
   document.querySelectorAll(".tab").forEach(el =>
     el.addEventListener("click", () => { state.tab = el.dataset.tab; renderScene(); }));
@@ -450,6 +496,158 @@ function renderLane(d) {
   }
   return html || '<div class="empty">no production artifacts for this scene — run scene_director</div>';
 }
+
+/* ---------- mixer dock ---------- */
+let MIX = null;
+const PPS_MIN = 6;  // px per second floor
+
+function playFile(path) {
+  const p = $("#player");
+  p.src = "/api/console/audio?file=" + encodeURIComponent(path);
+  p.play();
+}
+
+async function openMixer() {
+  if (!state.book || !state.scene) return;
+  MIX = await api(`/api/console/mix_timeline?book=${encodeURIComponent(state.book)}&scene=${encodeURIComponent(state.scene)}`);
+  $("#mixerDock").classList.add("open");
+  renderMixer();
+}
+
+function ovFor(key) { return (MIX.overrides.events || {})[key] || {}; }
+function laneOv(l) { return (MIX.overrides.lanes || {})[l] || {}; }
+
+function renderMixer() {
+  const d = MIX;
+  $("#mixTitle").textContent = `${d.scene_id} · ${Math.round(d.duration_s)}s · anchored to lines (edits survive re-synthesis)`;
+  const pps = Math.max(PPS_MIN, 1100 / Math.max(d.duration_s, 1));
+  const W = Math.ceil(d.duration_s * pps);
+  const X = s => (s * pps).toFixed(1);
+
+  const ruler = $("#timeRuler");
+  ruler.style.width = W + "px";
+  const step = d.duration_s > 600 ? 120 : (d.duration_s > 180 ? 60 : 15);
+  let marks = "";
+  for (let t = 0; t <= d.duration_s; t += step)
+    marks += `<span style="left:${X(t)}px">${t >= 60 ? Math.floor(t/60) + "m" + String(Math.round(t%60)).padStart(2,"0") : t + "s"}</span>`;
+  ruler.innerHTML = marks;
+
+  const laneBar = (name, label) => {
+    const o = laneOv(name);
+    return `<div class="laneHead">${label}
+      <button class="laneMute ${o.mute ? "on" : ""}" data-lanemute="${name}">M</button>
+      <span style="font-size:9px">${o.gain_db ? (o.gain_db > 0 ? "+" : "") + o.gain_db + "dB" : ""}</span></div>`;
+  };
+
+  let html = "";
+  // voice lane
+  html += `<div class="laneRow2">${laneBar("voice", "Voice")}<div class="laneTrack" style="width:${W}px">`;
+  for (const b of d.voice) {
+    const narr = b.character === "Narrator" ? "narr" : "";
+    html += `<div class="blk voice ${narr} ${b.estimated ? "est" : ""}" data-play="${esc(b.wav || "")}"
+      style="left:${X(b.start_s)}px;width:${Math.max(6, (b.end_s - b.start_s) * pps - 2).toFixed(1)}px"
+      title="${esc(b.character)}: ${esc(b.text)}">${esc(b.character === "Narrator" ? "" : b.character.split(" ")[0])}</div>`;
+  }
+  html += `</div></div>`;
+  // music lane
+  html += `<div class="laneRow2">${laneBar("music", "Music")}<div class="laneTrack" style="width:${W}px">`;
+  if (d.music.base_mood) {
+    html += `<div class="blk music" data-play="${esc(d.music.bed_wav || "")}" style="left:0;width:${W - 4}px"
+      title="bed: ${esc(d.music.style || d.music.base_mood)}">${esc(d.music.base_mood)} bed${d.music.state_events.length ? " · " + d.music.state_events.map(e => e.action + "@" + Math.round(e.start_s) + "s").join(", ") : ""}</div>`;
+  }
+  for (const s of d.music.stingers) {
+    const o = ovFor(s.key);
+    html += `<div class="blk stinger ${o.mute ? "muted" : ""}" data-evkey="${s.key}" data-play="${esc(s.wav || "")}"
+      style="left:${X(s.start_s + (o.nudge_s || 0))}px;width:14px;z-index:3" title="stinger: ${esc(s.description)}">⚡</div>`;
+  }
+  html += `</div></div>`;
+  // ambience lane
+  html += `<div class="laneRow2">${laneBar("ambience", "Ambience")}<div class="laneTrack" style="width:${W}px">`;
+  if (d.ambience.components.length)
+    html += `<div class="blk amb" data-play="${esc(d.ambience.wav || "")}" style="left:0;width:${W - 4}px"
+      title="${esc(d.ambience.components.join(" · "))}">${esc(d.ambience.components.join(" · ").slice(0, 90))}</div>`;
+  html += `</div></div>`;
+  // sfx lane
+  html += `<div class="laneRow2">${laneBar("sfx", "SFX")}<div class="laneTrack" style="width:${W}px">`;
+  for (const ev of d.sfx) {
+    const o = ovFor(ev.key);
+    const w = Math.max(46, Math.min(150, ev.layers.length * 40));
+    html += `<div class="blk sfx ${ev.category === "creature" ? "creature" : ""} ${o.mute ? "muted" : ""}"
+      data-evkey="${ev.key}" data-play="${esc(ev.wav || "")}"
+      style="left:${X(ev.start_s + (o.nudge_s || 0))}px;width:${w}px"
+      title="${esc(ev.name)} — ${ev.layers.map(l => l.component).join(" + ")}">
+      ${esc(ev.name)}${o.gain_db ? ` <span class="g">${o.gain_db > 0 ? "+" : ""}${o.gain_db}</span>` : ""}</div>`;
+  }
+  html += `</div></div>`;
+  $("#mixLanes").innerHTML = html;
+
+  document.querySelectorAll("#mixLanes .blk").forEach(el => el.addEventListener("click", e => {
+    e.stopPropagation();
+    if (el.dataset.evkey) showEvEditor(el, el.dataset.evkey);
+    else if (el.dataset.play) playFile(el.dataset.play);
+  }));
+  document.querySelectorAll("[data-lanemute]").forEach(el => el.addEventListener("click", async e => {
+    e.stopPropagation();
+    const lane = el.dataset.lanemute;
+    await postOverride("lane", lane, { mute: !laneOv(lane).mute });
+  }));
+}
+
+async function postOverride(target, key, fields) {
+  await fetch("/api/console/mix_override", { method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ book: state.book, scene_id: state.scene, target, key, ...fields }) });
+  MIX = await api(`/api/console/mix_timeline?book=${encodeURIComponent(state.book)}&scene=${encodeURIComponent(state.scene)}`);
+  renderMixer();
+}
+
+function showEvEditor(anchorEl, key) {
+  document.getElementById("evEditor")?.remove();
+  const o = ovFor(key);
+  const ed = document.createElement("div");
+  ed.id = "evEditor";
+  const r = anchorEl.getBoundingClientRect();
+  ed.style.left = Math.min(r.left, window.innerWidth - 300) + "px";
+  ed.style.top = (r.top - 190) + "px";
+  ed.innerHTML = `
+    <b>${esc(key)}</b>
+    <label>Gain: <span id="edGainV">${o.gain_db || 0}</span> dB</label>
+    <input type="range" id="edGain" min="-24" max="24" step="1" value="${o.gain_db || 0}">
+    <label>Nudge: <span id="edNudgeV">${o.nudge_s || 0}</span> s</label>
+    <input type="range" id="edNudge" min="-5" max="5" step="0.1" value="${o.nudge_s || 0}">
+    <div class="row" style="margin-top:8px; gap:6px">
+      <button class="ghost" id="edMute" style="padding:3px 10px">${o.mute ? "Unmute" : "Mute"}</button>
+      ${anchorEl.dataset.play ? `<button class="ghost" id="edPlay" style="padding:3px 10px">▶ Audition</button>` : ""}
+      <button id="edSave" style="padding:3px 12px">Save</button>
+    </div>`;
+  document.body.appendChild(ed);
+  $("#edGain").addEventListener("input", () => $("#edGainV").textContent = $("#edGain").value);
+  $("#edNudge").addEventListener("input", () => $("#edNudgeV").textContent = $("#edNudge").value);
+  if ($("#edPlay")) $("#edPlay").addEventListener("click", () => playFile(anchorEl.dataset.play));
+  $("#edMute").addEventListener("click", async () => { ed.remove(); await postOverride("event", key, { mute: !o.mute }); });
+  $("#edSave").addEventListener("click", async () => {
+    ed.remove();
+    await postOverride("event", key, { gain_db: +$("#edGain").value, nudge_s: +$("#edNudge").value, mute: !!o.mute });
+  });
+  setTimeout(() => document.addEventListener("click", function h(ev) {
+    if (!ed.contains(ev.target)) { ed.remove(); document.removeEventListener("click", h); }
+  }), 50);
+}
+
+$("#mixClose").addEventListener("click", () => $("#mixerDock").classList.remove("open"));
+$("#mixRemix").addEventListener("click", async () => {
+  $("#mixStatus").innerHTML = '<span class="spin"></span> re-mixing with your overrides…';
+  $("#mixRemix").disabled = true;
+  try {
+    const r = await fetch("/api/console/preview_tier", { method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ book: state.book, tier: 3, scene_id: state.scene, force: true }) });
+    const j = await r.json();
+    if (j.wav) { $("#mixStatus").textContent = "done"; playFile(j.wav); MIX = await api(`/api/console/mix_timeline?book=${encodeURIComponent(state.book)}&scene=${encodeURIComponent(state.scene)}`); renderMixer(); }
+    else $("#mixStatus").textContent = j.error || "failed";
+  } catch (e) { $("#mixStatus").textContent = "failed: " + e.message; }
+  $("#mixRemix").disabled = false;
+});
 
 /* ---------- progress chip ---------- */
 async function pollProgress() {

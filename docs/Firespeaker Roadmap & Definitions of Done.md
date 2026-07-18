@@ -280,6 +280,27 @@ user ids; payment processing on purchase; payout bookkeeping for sellers.
 **DoD:** XTTS on GPU with per-chapter incremental rendering; a novel renders in
 hours, not overnight; queue survives restarts.
 
+### T3-Q1 · Scene Mixer (advanced mode) — ✅ DONE
+**DoD:**
+- [x] Read API (`src/mix_timeline.py` → `GET /api/console/mix_timeline`): every lane
+      the assembly mixes (voice/music/ambience/sfx) serialized with timestamps
+      computed the same line-anchored way `assemble_scene` computes them, plus
+      audition paths into the last render's persisted workspace assets (verified:
+      8/8 SFX composites, 4/4 stingers, bed + ambience all resolvable).
+- [x] Write layer `{book}/tier3/mix_overrides.json` (same durable-override pattern
+      as line text and speaker corrections): per-event mute/gain(±24dB)/nudge(±5s),
+      per-lane mute/gain; keys validated, traversal-guarded (400).
+- [x] `assemble_scene` honors overrides at assembly time only — artifacts stay
+      pure. Proved live: muting `event:0` dropped the mix from 12 to 11 placed
+      events with the override logged; clearing restored 12.
+- [x] Console: bottom-docked multi-lane scene timeline (voice blocks by speaker,
+      music bed + stingers + state events, ambience, SFX chips), click-to-audition
+      any asset, per-event editor (mute/gain/nudge), lane mute buttons, and a
+      Re-mix button (force preview re-render honoring overrides — assets cached,
+      so re-mix is assembly-only).
+**Evidence:** anchoring stays line-based, so mix decisions survive re-synthesis;
+Action Foley Spotter (`b7efa6b`) feeds the SFX lane this mixer exposes.
+
 ### Deferred indefinitely (revisit on demand)
 Hamlet play parser (Y-1) · marketplace storefront pages · Chain F video ·
 cross-book series identity table · full README rewrite.

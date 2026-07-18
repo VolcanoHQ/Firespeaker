@@ -437,6 +437,9 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
                     self.send_json_error(400, "Provide project= or book=")
                     return
                 payload = console_api.usage_summary(project_id=q("project"), book=q("book"))
+            elif path == "/api/console/mix_timeline":
+                from src import mix_timeline
+                payload = mix_timeline.scene_timeline(q("book"), q("scene"))
             elif path == "/api/console/audio":
                 wav = console_api.resolve_audio(q("file"))
                 if not wav:
@@ -505,7 +508,7 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
             return
         if not self._auth_gate(path):
             return
-        if path.startswith("/api/marketplace/") or path.startswith("/api/voicestudio/") or path in ("/api/console/correct_speaker", "/api/console/preview_tier", "/api/console/render", "/api/console/projects", "/api/console/project_update"):
+        if path.startswith("/api/marketplace/") or path.startswith("/api/voicestudio/") or path in ("/api/console/correct_speaker", "/api/console/preview_tier", "/api/console/render", "/api/console/projects", "/api/console/project_update", "/api/console/mix_override"):
             try:
                 content_length = int(self.headers.get('Content-Length') or 0)
                 body = json.loads(self.rfile.read(content_length).decode('utf-8')) if content_length else {}
@@ -579,11 +582,33 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
                 except Exception as e:
                     logger.error(f"render start error: {e}")
                     self.send_json_error(500, f"Render error: {e}")
+            elif path == "/api/console/mix_override":
+                from src import mix_timeline
+                try:
+                    result = mix_timeline.save_mix_override(
+                        body.get("book", ""), body.get("scene_id", ""),
+                        body.get("target", ""), body.get("key", ""),
+                        mute=body.get("mute"), gain_db=body.get("gain_db"),
+                        nudge_s=body.get("nudge_s"))
+                    if result is None:
+                        self.send_json_error(400, "Invalid override target/key")
+                        return
+                    resp = json.dumps(result, default=str).encode("utf-8")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(resp)))
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.end_headers()
+                    self.wfile.write(resp)
+                except Exception as e:
+                    logger.error(f"mix_override error: {e}")
+                    self.send_json_error(500, f"Mix override error: {e}")
             elif path == "/api/console/preview_tier":
                 from src import tier_preview
                 try:
                     result = tier_preview.render_tier_preview(
-                        body.get("book", ""), int(body.get("tier", 0)), body.get("scene_id") or None)
+                        body.get("book", ""), int(body.get("tier", 0)), body.get("scene_id") or None,
+                        force=bool(body.get("force")))
                     if result is None:
                         self.send_json_error(400, "Invalid book or tier")
                         return

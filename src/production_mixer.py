@@ -219,11 +219,31 @@ def resolve_line_wavs(lines: List[Dict[str, Any]], synth, overrides: Optional[Di
 # Scene assembly
 # ----------------------------------------------------
 
-def assemble_scene(scene_id: str, line_wavs: List[Tuple[str, Dict[str, Any]]], direction: Dict[str, Any], sfx_cues: List[Dict[str, Any]], out_path: str, sound_design: Optional[Dict[str, Any]] = None) -> str:
+def assemble_scene(scene_id: str, line_wavs: List[Tuple[str, Dict[str, Any]]], direction: Dict[str, Any], sfx_cues: List[Dict[str, Any]], out_path: str, sound_design: Optional[Dict[str, Any]] = None,
+                   mix_overrides: Optional[Dict[str, Any]] = None) -> str:
     """Concatenates voice lines, computes line-anchored event timestamps, and mixes
-    voice + music bed (ducked) + ambience + stingers/SFX into one scene WAV."""
+    voice + music bed (ducked) + ambience + stingers/SFX into one scene WAV.
+
+    mix_overrides (the console mixer's write layer, {book}/tier3/mix_overrides.json):
+    {"events": {"event:<i>"|"stinger:<i>"|"cue:<i>": {mute, gain_db, nudge_s}},
+     "lanes": {"voice"|"music"|"ambience"|"sfx": {mute, gain_db}}}.
+    Human mix decisions apply at assembly time only -- artifacts stay pure."""
     scene_dir = os.path.join(WORKSPACE, scene_id)
     os.makedirs(scene_dir, exist_ok=True)
+
+    ov_events = (mix_overrides or {}).get("events", {})
+    ov_lanes = (mix_overrides or {}).get("lanes", {})
+
+    def _ev_params(key: str, base_ts: float) -> Optional[Tuple[float, float]]:
+        """(timestamp, linear_gain) for an event after overrides; None = muted."""
+        ov = ov_events.get(key, {})
+        lane = ov_lanes.get("sfx", {}) if key.startswith(("event:", "cue:")) else ov_lanes.get("music", {})
+        if ov.get("mute") or lane.get("mute"):
+            logger.info(f"Mix override: '{key}' muted.")
+            return None
+        gain_db = float(ov.get("gain_db", 0.0)) + float(lane.get("gain_db", 0.0))
+        ts = max(0.0, base_ts + float(ov.get("nudge_s", 0.0)))
+        return ts, 10 ** (gain_db / 20.0)
 
     # 1. Voice track: concat lines with their post-padding as silence
     concat_parts = []
@@ -249,15 +269,17 @@ def assemble_scene(scene_id: str, line_wavs: List[Tuple[str, Dict[str, Any]]], d
     # 2. Event timeline: stingers fire after their anchor line ends; SFX cues are
     # placed after the line whose text contains (or is nearest to) their sound_text
     from src.audio_generation import generate_stinger, generate_music_bed
-    events: List[Tuple[float, str]] = []  # (timestamp, asset_path)
+    events: List[Tuple[float, str, float]] = []  # (timestamp, asset_path, linear_gain)
     for i, s in enumerate(direction.get("music", {}).get("stingers", [])):
         idx = s["after_line_index"]
         if 0 <= idx < len(line_wavs):
-            end_of_line = offsets[idx] + _wav_duration(line_wavs[idx][0])
+            params = _ev_params(f"stinger:{i}", offsets[idx] + _wav_duration(line_wavs[idx][0]))
+            if params is None:
+                continue
             sting_path = os.path.join(scene_dir, f"stinger_{i}.wav")
             if generate_stinger(s.get("description", "dramatic musical accent"), sting_path) is None:
                 sting_path = make_placeholder_stinger(sting_path)
-            events.append((end_of_line, sting_path))
+            events.append((*params[:1], sting_path, params[1]))
     if sound_design and sound_design.get("events"):
         # Layered sound design: each event is a composite of generated component
         # layers (foley-style), placed at its anchor line. Creature sounds carry
@@ -268,7 +290,10 @@ def assemble_scene(scene_id: str, line_wavs: List[Tuple[str, Dict[str, Any]]], d
             idx = ev["anchor_line_index"]
             if not (0 <= idx < len(line_wavs)):
                 continue
-            anchor = offsets[idx] + _wav_duration(line_wavs[idx][0])
+            params = _ev_params(f"event:{i}", offsets[idx] + _wav_duration(line_wavs[idx][0]))
+            if params is None:
+                continue
+            anchor, ev_gain = params
             layers = ev["layers"]
             if ev.get("category") == "creature" and ev.get("emotional_intent"):
                 layers = [
@@ -277,10 +302,10 @@ def assemble_scene(scene_id: str, line_wavs: List[Tuple[str, Dict[str, Any]]], d
                 ]
             composite_path = os.path.join(scene_dir, f"composite_{i}.wav")
             if compose_layered_sfx(layers, composite_path) is not None:
-                events.append((anchor, composite_path))
+                events.append((anchor, composite_path, ev_gain))
                 logger.info(f"Composite event '{ev['name']}' ({len(layers)} layers) anchored at {anchor:.1f}s")
             else:
-                events.append((anchor, make_placeholder_sfx(ev["name"], composite_path)))
+                events.append((anchor, make_placeholder_sfx(ev["name"], composite_path), ev_gain))
     else:
         for i, cue in enumerate(sfx_cues):
             cue_norm = re.sub(r"\s+", " ", cue["sound_text"].lower())
@@ -299,8 +324,11 @@ def assemble_scene(scene_id: str, line_wavs: List[Tuple[str, Dict[str, Any]]], d
                 if cue_norm[:30] in re.sub(r"\s+", " ", line["text"].lower()):
                     anchor = offsets[j] + _wav_duration(wav)
                     break
+            params = _ev_params(f"cue:{i}", anchor)
+            if params is None:
+                continue
             sfx_path = make_placeholder_sfx(cue["description"], os.path.join(scene_dir, f"sfx_{i}.wav"))
-            events.append((anchor, sfx_path))
+            events.append((params[0], sfx_path, params[1]))
 
     # 3. Beds: real MusicGen from the director's style prompt, placeholder fallback.
     # Music state machine: 'stop'/'resume'/'change' events segment the bed timeline
@@ -382,18 +410,33 @@ def assemble_scene(scene_id: str, line_wavs: List[Tuple[str, Dict[str, Any]]], d
 
     # 4. Mix: music ducked under voice (sidechain), ambience constant-low,
     # events overlaid at their timestamps via adelay.
-    inputs = ["-i", voice_track, "-i", music_bed]
-    filters = ["[1:a][0:a]sidechaincompress=threshold=0.15:ratio=2:attack=100:release=300[ducked]"]
-    mix_labels = ["[0:a]", "[ducked]"]
-    idx = 2
-    if ambience:
-        inputs += ["-i", ambience]
-        mix_labels.append(f"[{idx}:a]")
+    def _lane_gain(lane: str) -> float:
+        return 10 ** (float(ov_lanes.get(lane, {}).get("gain_db", 0.0)) / 20.0)
+
+    music_muted = bool(ov_lanes.get("music", {}).get("mute"))
+    ambience_muted = bool(ov_lanes.get("ambience", {}).get("mute"))
+    inputs = ["-i", voice_track]
+    filters = [f"[0:a]volume={_lane_gain('voice'):.4f}[vox]"]
+    mix_labels = ["[vox]"]
+    idx = 1
+    if not music_muted:
+        inputs += ["-i", music_bed]
+        filters.append(f"[{idx}:a][0:a]sidechaincompress=threshold=0.15:ratio=2:attack=100:release=300,volume={_lane_gain('music'):.4f}[ducked]")
+        mix_labels.append("[ducked]")
         idx += 1
-    for ts, asset in events:
+    else:
+        logger.info("Mix override: music lane muted.")
+    if ambience and not ambience_muted:
+        inputs += ["-i", ambience]
+        filters.append(f"[{idx}:a]volume={_lane_gain('ambience'):.4f}[amb]")
+        mix_labels.append("[amb]")
+        idx += 1
+    elif ambience_muted:
+        logger.info("Mix override: ambience lane muted.")
+    for ts, asset, gain in events:
         inputs += ["-i", asset]
         delay_ms = int(ts * 1000)
-        filters.append(f"[{idx}:a]adelay={delay_ms}|{delay_ms}[ev{idx}]")
+        filters.append(f"[{idx}:a]adelay={delay_ms}|{delay_ms},volume={gain:.4f}[ev{idx}]")
         mix_labels.append(f"[ev{idx}]")
         idx += 1
     filters.append(f"{''.join(mix_labels)}amix=inputs={len(mix_labels)}:duration=first:normalize=0[out]")
@@ -594,6 +637,13 @@ def mix_production(manifest_path: str, output_path: str) -> Dict[str, Any]:
 
     os.makedirs(WORKSPACE, exist_ok=True)
 
+    mix_overrides_all: Dict[str, Any] = {}
+    mix_ov_path = os.path.join(tier3_dir, "mix_overrides.json")
+    if os.path.exists(mix_ov_path):
+        with open(mix_ov_path, "r", encoding="utf-8") as f:
+            mix_overrides_all = json.load(f)
+        logger.info(f"Loaded console mix overrides for {len(mix_overrides_all)} scene(s).")
+
     overrides: Dict[str, Dict[str, Any]] = {}
     overrides_path = os.path.join(tier3_dir, "line_overrides.json")
     if os.path.exists(overrides_path):
@@ -698,6 +748,7 @@ def mix_production(manifest_path: str, output_path: str) -> Dict[str, Any]:
                     scenes_sfx.get(scene.scene_id, []),
                     os.path.join(WORKSPACE, f"{scene.scene_id}_mixed.wav"),
                     sound_design=sound_design,
+                    mix_overrides=mix_overrides_all.get(scene.scene_id),
                 )
                 scene_wavs.append(scene_wav)
 

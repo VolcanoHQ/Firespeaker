@@ -122,7 +122,8 @@ def _concat_with_padding(line_wavs, out_path: str) -> None:
     os.remove(listfile)
 
 
-def render_tier_preview(book: str, tier: int, scene_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+def render_tier_preview(book: str, tier: int, scene_id: Optional[str] = None,
+                        force: bool = False) -> Optional[Dict[str, Any]]:
     """Render the trailer scene at the requested tier. Returns
     {wav, scene_id, tier, cached, [note]} or an {'error': ...} dict when the
     tier's prerequisite artifacts don't exist for this book."""
@@ -141,7 +142,7 @@ def render_tier_preview(book: str, tier: int, scene_id: Optional[str] = None) ->
     os.makedirs(PREVIEW_DIR, exist_ok=True)
     slug = re.sub(r"[^A-Za-z0-9_\-]", "", book)
     out = os.path.join(PREVIEW_DIR, f"{slug}_tier{tier}_{scene_id}.wav")
-    if os.path.exists(out) and os.path.getsize(out) > 0:
+    if not force and os.path.exists(out) and os.path.getsize(out) > 0:
         return {"wav": out, "scene_id": scene_id, "tier": tier, "cached": True, "pick": pick}
 
     lines = _scene_lines(book, scene_id)
@@ -192,8 +193,10 @@ def render_tier_preview(book: str, tier: int, scene_id: Optional[str] = None) ->
                     speed=1.0, pitch=0.0)
         line_wavs = resolve_line_wavs(lines, synth)
         if tier == 3:
+            from src.mix_timeline import load_mix_overrides
             assemble_scene(scene_id, line_wavs, json.loads(json.dumps(direction)),
-                           sfx_cues, out, sound_design=json.loads(json.dumps(sound_design)) if sound_design else None)
+                           sfx_cues, out, sound_design=json.loads(json.dumps(sound_design)) if sound_design else None,
+                           mix_overrides=load_mix_overrides(book).get(scene_id))
         else:
             _concat_with_padding(line_wavs, out)
 
