@@ -1789,7 +1789,15 @@ def main():
     parser.add_argument("--resume-enrichment", action="store_true", help="With --enable-llm-enrichment: reuse previously-enriched scenes from the existing pipeline artifacts and spend LLM calls only on scenes still on Tier 1 defaults (quota-starved runs finish across days)")
 
     args = parser.parse_args()
-    
+
+    # T2-3: attribute direct CLI runs in the usage meter too (owner "local").
+    if args.input and args.enable_llm_enrichment:
+        try:
+            from src.llm_client import set_usage_context
+            set_usage_context(book=os.path.splitext(os.path.basename(args.input))[0], owner="local")
+        except Exception:
+            pass
+
     if args.stress_test:
         print("\n=== RUNNING TIER 1 PUBLIC DOMAIN STRESS TEST (DoD) ===")
         books = [

@@ -251,10 +251,17 @@ async function refreshProjectCard() {
     const r = await api(`/api/console/projects?book=${encodeURIComponent(state.book)}`);
     const p = (r.projects || [])[0];
     if (p) {
+      let usage = "";
+      try {
+        const u = await api(`/api/console/usage?book=${encodeURIComponent(state.book)}`);
+        usage = `<div class="hint" style="margin-top:6px">usage: ${u.llm_calls} LLM call${u.llm_calls===1?"":"s"}`
+          + (u.llm_calls ? ` (${Object.entries(u.by_provider).map(([k,v])=>`${k} ${v}`).join(", ")}; ${Math.round((u.success_rate||0)*100)}% ok)` : "")
+          + ` · ${u.render_jobs_completed} render${u.render_jobs_completed===1?"":"s"} / ${u.render_minutes} min</div>`;
+      } catch {}
       el.innerHTML = `<span class="chip" style="color:var(--accent2)">tier ${p.tier}</span>
         <span class="chip">${esc(p.plan)}</span>
         <span class="chip">${esc(p.owner === "local" ? "local" : "owned")}</span>
-        <span style="margin-left:8px;color:var(--dim)">${esc(p.id)}</span>`;
+        <span style="margin-left:8px;color:var(--dim)">${esc(p.id)}</span>${usage}`;
     } else {
       el.innerHTML = `<button class="ghost" id="adoptBtn" style="padding:4px 12px">Adopt as project</button>
         <span class="hint">tier &amp; plan lock in at creation; first render adopts automatically</span>`;

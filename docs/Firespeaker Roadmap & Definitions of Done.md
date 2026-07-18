@@ -239,9 +239,19 @@ remains local-only until auth is hardened (HTTPS, rate limits) — tracked in T2
 **Evidence:** curl-tested in both auth modes; dead-worker reaper extended to
 queued jobs killed before their running state (found during testing).
 
-### T2-3 · Usage metering per user/project — ⬜ OPEN
-**DoD:** Every LLM call and generation job carries owner + project in the audit log;
-a per-project usage summary endpoint answers "what did this book cost?"
+### T2-3 · Usage metering per user/project — ✅ DONE
+**DoD:**
+- [x] Usage context (`set_usage_context`: book/owner/project_id/plan) merged into
+      every audit record; render workers set it from the job record, the CLI sets
+      book + "local"; unset context = pre-T2-3 record shape (old lines coexist).
+- [x] `usage_summary(project|book)`: calls, by-provider, by-task, success rate,
+      time window, plus render-job count and wall-clock minutes.
+      `GET /api/console/usage?project=|book=` (400 without a scope).
+- [x] Verified live: a forced 1-scene re-enrichment wrote 3 context-stamped
+      records (cleancheck/attribution/alias_merge, book + owner present);
+      aggregate exactly matched a manual grep of the jsonl; console Project card
+      shows the usage line.
+**Evidence:** audit-log rotation noted as a future concern at scale.
 
 ### T2-4 · Plan → provider entitlement (paid fast lane) — ⬜ OPEN
 **DoD:** A project's plan selects its provider chain (free = current chain + resume

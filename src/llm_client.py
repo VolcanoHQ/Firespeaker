@@ -118,8 +118,34 @@ def _save_usage_state(state: Dict[str, Any]) -> None:
         logger.warning(f"Could not persist LLM usage state: {e}")
 
 
+# T2-3 usage context: whoever starts a pipeline run declares who/what it's for
+# (render jobs set it from the job record; the CLI sets book + "local"). Every
+# audit record carries it -- the audit log IS the per-project usage meter.
+# Unset context = fields absent = pre-T2-3 record shape, so old readers and old
+# log lines coexist.
+_USAGE_CONTEXT: Dict[str, Any] = {}
+
+
+def set_usage_context(book: Optional[str] = None, owner: Optional[str] = None,
+                      project_id: Optional[str] = None, plan: Optional[str] = None) -> None:
+    _USAGE_CONTEXT.clear()
+    for k, v in (("book", book), ("owner", owner), ("project_id", project_id), ("plan", plan)):
+        if v:
+            _USAGE_CONTEXT[k] = v
+
+
+def clear_usage_context() -> None:
+    _USAGE_CONTEXT.clear()
+
+
+def get_usage_context() -> Dict[str, Any]:
+    return dict(_USAGE_CONTEXT)
+
+
 def _append_audit_log(record: Dict[str, Any]) -> None:
     try:
+        if _USAGE_CONTEXT:
+            record = {**record, **_USAGE_CONTEXT}
         os.makedirs(os.path.dirname(AUDIT_LOG_PATH), exist_ok=True)
         with open(AUDIT_LOG_PATH, "a", encoding="utf-8") as f:
             f.write(json.dumps(record, default=str) + "\n")

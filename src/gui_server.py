@@ -432,6 +432,11 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
                 if q("book"):
                     projects = [p for p in projects if p.get("book_stem") == q("book")]
                 payload = {"projects": projects}
+            elif path == "/api/console/usage":
+                if not q("project") and not q("book"):
+                    self.send_json_error(400, "Provide project= or book=")
+                    return
+                payload = console_api.usage_summary(project_id=q("project"), book=q("book"))
             elif path == "/api/console/audio":
                 wav = console_api.resolve_audio(q("file"))
                 if not wav:

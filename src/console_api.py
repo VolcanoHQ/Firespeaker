@@ -285,6 +285,54 @@ def book_speakers(book: str) -> List[str]:
     return sorted(speakers | {"Narrator"})
 
 
+def usage_summary(project_id: str = "", book: str = "") -> Dict[str, Any]:
+    """The billing meter's read side: aggregate the audit log (and render-job
+    wall time) for one project or book. Streams the jsonl -- no index needed
+    at current volumes; rotation is a future concern noted in the ledger."""
+    audit_path = "data/llm_call_audit.jsonl"
+    agg: Dict[str, Any] = {"llm_calls": 0, "successes": 0, "by_provider": {},
+                           "by_task": {}, "first_ts": None, "last_ts": None}
+    if os.path.exists(audit_path):
+        with open(audit_path, encoding="utf-8") as f:
+            for line in f:
+                try:
+                    r = json.loads(line)
+                except Exception:
+                    continue
+                if project_id and r.get("project_id") != project_id:
+                    continue
+                if book and r.get("book") != book:
+                    continue
+                if not project_id and not book:
+                    continue
+                agg["llm_calls"] += 1
+                agg["successes"] += 1 if r.get("success") else 0
+                agg["by_provider"][r.get("provider", "?")] = agg["by_provider"].get(r.get("provider", "?"), 0) + 1
+                task = r.get("task_name", "?")
+                agg["by_task"][task] = agg["by_task"].get(task, 0) + 1
+                ts = r.get("timestamp")
+                if ts:
+                    agg["first_ts"] = min(agg["first_ts"] or ts, ts)
+                    agg["last_ts"] = max(agg["last_ts"] or ts, ts)
+    agg["success_rate"] = round(agg["successes"] / agg["llm_calls"], 3) if agg["llm_calls"] else None
+
+    render_seconds = 0.0
+    render_jobs = 0
+    for p in sorted(__import__("glob").glob("data/render_jobs/*.json")):
+        j = _load_json(p) or {}
+        if project_id and j.get("project_id") != project_id:
+            continue
+        if book and j.get("book") != book:
+            continue
+        if j.get("started_at") and j.get("finished_at"):
+            render_seconds += j["finished_at"] - j["started_at"]
+            render_jobs += 1
+    agg["render_jobs_completed"] = render_jobs
+    agg["render_minutes"] = round(render_seconds / 60, 1)
+    agg["scope"] = {"project_id": project_id or None, "book": book or None}
+    return agg
+
+
 def progress() -> Dict[str, Any]:
     return _load_json(PROGRESS_FILE) or {}
 

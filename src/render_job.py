@@ -147,6 +147,17 @@ def run_job(job_id: str) -> int:
     job.update(status="running", started_at=time.time(), pid=os.getpid())
     _write_job(job)
     try:
+        from src.llm_client import set_usage_context
+        plan = None
+        if job.get("project_id"):
+            try:
+                from src.project_db import ProjectDB
+                project = ProjectDB().get_product_project(job["project_id"])
+                plan = (project or {}).get("plan")
+            except Exception:
+                pass
+        set_usage_context(book=job["book"], owner=job.get("owner"),
+                          project_id=job.get("project_id"), plan=plan)
         from src.tier_1_parser import ingest_manuscript_tier_1
         tier = job["tier"]
         manifest = ingest_manuscript_tier_1(
