@@ -1,8 +1,30 @@
 # Firespeaker
 
-An intelligent, context-aware audiobook creation platform leveraging state-of-the-art open-source Natural Language Processing (NLP) and zero-shot generative Speech Synthesis.
+*The production engine of [Volcano Studios](https://github.com/VolcanoHQ).*
 
-Firespeaker segments raw manuscripts, performs character entity resolution (via neural cross-context coreference `xCoRe`), extracts dialogue, maps emotional sentiments, and generates highly expressive character-consistent audio tracks using `XTTS-v2` and `Suno Bark`.
+Manuscript in, audiobook out. Firespeaker turns raw text (.txt/.epub) into finished
+audiobooks across three production tiers — single narrator, full character cast, and
+Graphic-Audio-style productions with scene-scored music and layered sound design —
+using free-tier and open-source models end to end. Deterministic-first analysis with
+AI gates, schema-validated and text-grounded AI passes, durable human overrides, a
+review console with a per-scene mix timeline, and zero-shot voice cloning via
+`XTTS-v2`.
+
+---
+
+## 🔒 Security & Licensing Notes
+
+- **Local tool, no auth by default.** The studio server binds all interfaces with
+  authentication OFF for a friction-free local workflow. Never port-forward or
+  deploy it bare — enable sessions with `FIRESPEAKER_AUTH=on` (magic-link auth,
+  see `src/user_db.py`) before any non-local exposure.
+- **Engine code is MIT; generation models are not.** XTTS-v2 ships under the Coqui
+  Public Model License (non-commercial) and MusicGen's weights under CC-BY-NC.
+  Using this engine's *output* commercially requires reviewing those licenses or
+  swapping models — the synthesis/generation layers are deliberately swappable
+  behind `src/voice_synthesizer.py` and `src/audio_generation.py`.
+- API keys live only in a gitignored `.env` (see setup below); nothing in this
+  repository or its history contains credentials.
 
 ---
 

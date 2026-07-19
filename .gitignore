@@ -185,3 +185,7 @@ scratch/
 
 # Generated ingestion artifacts
 ingestion_report.json
+
+# Nested model repos (cloned locally for research; never committed)
+voice_synthesis_testing/models/coqui-tts/
+voice_synthesis_testing/models/espnet/
