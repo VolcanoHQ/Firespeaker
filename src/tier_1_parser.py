@@ -1387,8 +1387,20 @@ def ingest_manuscript_tier_1(file_path: str, chapters: str = None, enable_llm_en
         raw_text = epub_to_text(file_path)
         print(f"  [EPUB] Converted spine to {raw_text.count(chr(10)+chr(10)+chr(10)) + 1} chapter block(s).")
     else:
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
             raw_text = f.read()
+        # Binary-input guard (measured failure: a mis-uploaded EPUB saved as .txt
+        # was ingested as ZIP garbage and became "scenes" of binary noise). A
+        # manuscript is overwhelmingly printable text; anything else is refused
+        # loudly instead of narrated.
+        sample = raw_text[:20000]
+        if sample:
+            printable = sum(1 for ch in sample if ch.isprintable() or ch in "\n\r\t")
+            if printable / len(sample) < 0.9:
+                raise ValueError(
+                    f"'{os.path.basename(file_path)}' does not look like a text manuscript "
+                    f"({100 * printable / len(sample):.0f}% printable). If this is an EPUB, "
+                    "upload it with its .epub extension so the spine-aware ingestion handles it.")
         
     base_name = os.path.splitext(os.path.basename(file_path))[0]
     # Namespaced under tier1/ -- src/looped_analyzer.py writes its own (differently
