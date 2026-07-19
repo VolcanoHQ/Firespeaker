@@ -1005,7 +1005,7 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
                 return
                 
             # Sanitize book name slug
-            import re
+            pass  # re is imported at module level
             base_name = os.path.splitext(filename)[0]
             slug = re.sub(r'[^a-zA-Z0-9_\-]', '', base_name)
             
@@ -1143,7 +1143,7 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
             profile_data = profiler.profile_book(filepath, hierarchy_data=hierarchy_data)
             
             # Save cache
-            import re
+            pass  # re is imported at module level
             base_name = os.path.splitext(filename)[0]
             slug = re.sub(r'[^a-zA-Z0-9_\-]', '', base_name)
             
@@ -1201,7 +1201,7 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
             palace.close()
             
             # 2. Modify existing hierarchy cache dynamically to preserve structural scene splits
-            import re
+            pass  # re is imported at module level
             base_name = os.path.splitext(filename)[0]
             slug = re.sub(r'[^a-zA-Z0-9_\-]', '', base_name)
             tier = params.get("tier", 1)
@@ -1361,7 +1361,7 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
             palace.close()
             
             # 4. Modify existing hierarchy cache dynamically to preserve structural scene splits
-            import re
+            pass  # re is imported at module level
             base_name = os.path.splitext(filename)[0]
             slug = re.sub(r'[^a-zA-Z0-9_\-]', '', base_name)
             tier = params.get("tier", 1)
@@ -1502,7 +1502,7 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
             logger.info(f"Line speaker override successful: Line [{line_id}] -> [{new_speaker}]")
             
             # Direct cache update to prevent full re-parsing overlap
-            import re
+            pass  # re is imported at module level
             base_name = os.path.splitext(filename)[0]
             slug = re.sub(r'[^a-zA-Z0-9_\-]', '', base_name)
             
@@ -1617,7 +1617,7 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
                 self.send_json_error(400, "Missing required parameters: filename, line_id")
                 return
                 
-            import re
+            pass  # re is imported at module level
             base_name = os.path.splitext(filename)[0]
             slug = re.sub(r'[^a-zA-Z0-9_\-]', '', base_name)
             
@@ -1734,7 +1734,7 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
                 self.send_json_error(400, "Missing required parameters: filename, aspect")
                 return
                 
-            import re
+            pass  # re is imported at module level
             base_name = os.path.splitext(filename)[0]
             slug = re.sub(r'[^a-zA-Z0-9_\-]', '', base_name)
             
@@ -1856,7 +1856,7 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
                 self.send_json_error(400, "Missing required parameters: filename, hierarchy")
                 return
                 
-            import re
+            pass  # re is imported at module level
             base_name = os.path.splitext(filename)[0]
             slug = re.sub(r'[^a-zA-Z0-9_\-]', '', base_name)
             
@@ -2004,7 +2004,7 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
                 else:
                     base_url = "http://localhost:11434"
                     
-            import re
+            pass  # re is imported at module level
             base_name = os.path.splitext(filename)[0]
             slug = re.sub(r'[^a-zA-Z0-9_\-]', '', base_name)
             
