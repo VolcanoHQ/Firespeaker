@@ -7,6 +7,7 @@ A zero-dependency standard Python HTTP API server hosting the workspace.
 """
 
 import os
+import re
 import sys
 import json
 import time
@@ -271,6 +272,19 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 return
             payload = {"email": session["email"], "user_id": session["user_id"]}
+        elif path == "/api/auth/profile":
+            user = self._current_user()
+            uid = user["user_id"] if user else "local"
+            if self.command == "POST":
+                payload = user_db.update_profile(
+                    uid, display_name=body.get("display_name"),
+                    roles=body.get("roles"), bio=body.get("bio"))
+            else:
+                payload = user_db.get_profile(uid)
+            if payload is None:
+                self.send_json_error(404, "No such user")
+                return
+            cookie = None
         elif path == "/api/auth/me":
             user = self._current_user()
             if not user:
@@ -442,7 +456,8 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
                 name = (params.get("name") or [""])[0]
                 payload = voice_studio.start_session(name, name)
             elif path == "/api/voicestudio/start":
-                payload = voice_studio.start_session(body.get("name", ""), body.get("speaker", ""))
+                payload = voice_studio.start_session(body.get("name", ""), body.get("speaker", ""),
+                                                     owner=self._owner())
             elif path == "/api/voicestudio/record":
                 payload = voice_studio.save_recording(
                     body.get("session", ""), body.get("prompt_id", ""),
@@ -597,7 +612,7 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
             return
         if not self._auth_gate(path):
             return
-        if path.startswith("/api/marketplace/") or path.startswith("/api/voicestudio/") or path in ("/api/console/correct_speaker", "/api/console/preview_tier", "/api/console/render", "/api/console/projects", "/api/console/project_update", "/api/console/mix_override", "/api/console/omit_scene"):
+        if path.startswith("/api/marketplace/") or path.startswith("/api/voicestudio/") or path in ("/api/console/correct_speaker", "/api/console/preview_tier", "/api/console/render", "/api/console/projects", "/api/console/project_update", "/api/console/mix_override", "/api/console/omit_scene", "/api/console/upload_source"):
             try:
                 content_length = int(self.headers.get('Content-Length') or 0)
                 body = json.loads(self.rfile.read(content_length).decode('utf-8')) if content_length else {}
@@ -671,6 +686,35 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
                 except Exception as e:
                     logger.error(f"render start error: {e}")
                     self.send_json_error(500, f"Render error: {e}")
+            elif path == "/api/console/upload_source":
+                try:
+                    filename = os.path.basename(body.get("filename") or "")
+                    data_url = body.get("data") or ""
+                    stem, ext = os.path.splitext(filename)
+                    stem = re.sub(r"[^A-Za-z0-9_\- ]", "", stem).strip()
+                    if ext.lower() not in (".txt", ".epub") or not stem or "," not in data_url:
+                        self.send_json_error(400, "Need filename (.txt or .epub) and data (dataURL)")
+                        return
+                    import base64
+                    raw = base64.b64decode(data_url.split(",", 1)[1])
+                    if len(raw) > 80 * 1024 * 1024:
+                        self.send_json_error(413, "File too large (80MB cap)")
+                        return
+                    os.makedirs("data/uploads", exist_ok=True)
+                    dest = os.path.join("data/uploads", stem + ext.lower())
+                    with open(dest, "wb") as f:
+                        f.write(raw)
+                    logger.info(f"Source uploaded: {dest} ({len(raw)} bytes)")
+                    resp = json.dumps({"book": stem, "path": dest, "bytes": len(raw)}).encode("utf-8")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(resp)))
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.end_headers()
+                    self.wfile.write(resp)
+                except Exception as e:
+                    logger.error(f"upload_source error: {e}")
+                    self.send_json_error(500, f"Upload error: {e}")
             elif path == "/api/console/omit_scene":
                 from src import console_api as _ca
                 try:
@@ -1034,6 +1078,26 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
                 import base64
                 header, encoded = text.split(",", 1)
                 file_bytes = base64.b64decode(encoded)
+                # EPUBs are binary ZIP containers: decoding them as text produced
+                # the measured "completely scrambled" upload. Save the raw bytes
+                # with their .epub identity intact -- the spine-aware ingestion
+                # (nlp_engine/epub_ingestion.py) takes over at render time.
+                if filename.lower().endswith(".epub") or "epub+zip" in header:
+                    stem = re.sub(r"[^A-Za-z0-9_\- ]", "", os.path.splitext(os.path.basename(filename))[0]).strip() or "uploaded_book"
+                    os.makedirs("data/uploads", exist_ok=True)
+                    epub_path = os.path.join("data/uploads", stem + ".epub")
+                    with open(epub_path, "wb") as f:
+                        f.write(file_bytes)
+                    logger.info(f"EPUB uploaded (binary-safe): {epub_path} ({len(file_bytes)} bytes)")
+                    resp = json.dumps({"book": stem, "format": "epub", "path": epub_path,
+                                       "note": "EPUB saved; generate from the console to ingest via the spine."}).encode("utf-8")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(resp)))
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.end_headers()
+                    self.wfile.write(resp)
+                    return
                 if "wordprocessingml" in header or filename.endswith(".docx"):
                     import zipfile
                     import xml.etree.ElementTree as ET

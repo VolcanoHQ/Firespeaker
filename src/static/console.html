@@ -149,6 +149,9 @@
 <div id="layout">
   <div id="booksPane" class="pane">
     <div class="paneTitle">Books</div>
+    <button class="ghost" id="uploadBtn" style="width:100%;margin-bottom:8px;padding:7px;border-style:dashed">⬆ Upload manuscript (.txt / .epub)</button>
+    <input type="file" id="uploadInput" accept=".txt,.epub" style="display:none">
+    <div id="uploadStatus" class="hint" style="margin-bottom:6px"></div>
     <div id="bookList"><div class="empty">loading…</div></div>
   </div>
   <div id="treePane" class="pane">
@@ -771,6 +774,30 @@ async function loadHealth() {
       : "all environment checks passed";
   } catch { $("#healthChip").textContent = "env ?"; }
 }
+$("#uploadBtn").addEventListener("click", () => $("#uploadInput").click());
+$("#uploadInput").addEventListener("change", async () => {
+  const file = $("#uploadInput").files[0];
+  if (!file) return;
+  $("#uploadStatus").innerHTML = '<span class="spin" style="display:inline-block;width:11px;height:11px;border:2px solid var(--dim);border-top-color:var(--accent);border-radius:50%;animation:rot .8s linear infinite;vertical-align:-2px"></span> uploading ' + esc(file.name) + "…";
+  try {
+    const dataUrl = await new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(r.result);
+      r.onerror = rej;
+      r.readAsDataURL(file);
+    });
+    const resp = await fetch("/api/console/upload_source", { method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ filename: file.name, data: dataUrl }) });
+    const j = await resp.json();
+    if (!resp.ok) { $("#uploadStatus").textContent = j.error || "upload failed"; return; }
+    $("#uploadStatus").textContent = "✓ " + j.book + " uploaded — select it and Generate";
+    await loadBooks();
+    const card = document.querySelector(`.bookCard[data-book="${CSS.escape(j.book)}"]`);
+    if (card) card.click();
+  } catch (e) { $("#uploadStatus").textContent = "upload failed: " + e.message; }
+  $("#uploadInput").value = "";
+});
 loadHealth();
 loadBooks();
 pollProgress();

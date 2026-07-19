@@ -46,6 +46,10 @@ def _conn() -> sqlite3.Connection:
     c.execute("""CREATE TABLE IF NOT EXISTS users (
         user_id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL,
         display_name TEXT, role TEXT DEFAULT 'owner', created_at REAL)""")
+    # Profile migration: free-form profile document (roles list, bio, links).
+    existing = {row[1] for row in c.execute("PRAGMA table_info(users);")}
+    if "profile_json" not in existing:
+        c.execute("ALTER TABLE users ADD COLUMN profile_json TEXT DEFAULT '{}';")
     c.execute("""CREATE TABLE IF NOT EXISTS sessions (
         token TEXT PRIMARY KEY, user_id TEXT NOT NULL,
         created_at REAL, expires_at REAL)""")
@@ -119,6 +123,57 @@ def logout(token: str) -> None:
     c = _conn()
     c.execute("DELETE FROM sessions WHERE token = ?", (token,))
     c.commit(); c.close()
+
+
+VALID_ROLES = ("author", "voice_actor", "producer")
+
+
+def get_profile(user_id: str) -> Optional[Dict[str, Any]]:
+    """User identity + profile document. Works for the implicit "local" user
+    too (auth-off mode) so the account panel behaves identically in both modes."""
+    if user_id == "local":
+        return {"user_id": "local", "email": None, "display_name": "Local Studio",
+                "roles": list(VALID_ROLES), "bio": "", "local": True}
+    c = _conn()
+    row = c.execute("SELECT email, display_name, profile_json FROM users WHERE user_id = ?",
+                    (user_id,)).fetchone()
+    c.close()
+    if not row:
+        return None
+    profile = {}
+    try:
+        profile = json.loads(row[2] or "{}")
+    except Exception:
+        pass
+    return {"user_id": user_id, "email": row[0], "display_name": row[1] or row[0].split("@")[0],
+            "roles": profile.get("roles", ["author"]), "bio": profile.get("bio", ""),
+            "local": False}
+
+
+def update_profile(user_id: str, display_name: Optional[str] = None,
+                   roles: Optional[list] = None, bio: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    if user_id == "local":
+        return get_profile("local")  # the implicit user has no stored profile
+    c = _conn()
+    row = c.execute("SELECT profile_json FROM users WHERE user_id = ?", (user_id,)).fetchone()
+    if not row:
+        c.close()
+        return None
+    try:
+        profile = json.loads(row[0] or "{}")
+    except Exception:
+        profile = {}
+    if roles is not None:
+        profile["roles"] = [r for r in roles if r in VALID_ROLES] or ["author"]
+    if bio is not None:
+        profile["bio"] = str(bio)[:1000]
+    if display_name is not None and str(display_name).strip():
+        c.execute("UPDATE users SET display_name = ? WHERE user_id = ?",
+                  (str(display_name).strip()[:80], user_id))
+    c.execute("UPDATE users SET profile_json = ? WHERE user_id = ?",
+              (json.dumps(profile), user_id))
+    c.commit(); c.close()
+    return get_profile(user_id)
 
 
 def claim_local(email: str) -> Dict[str, Any]:

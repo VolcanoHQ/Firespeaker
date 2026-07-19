@@ -133,6 +133,7 @@ class VoiceMarketplace:
             "voice_ref_path": p.payload.get("voice_ref_path"),
             "description": p.payload.get("description"),
             "seller": p.payload.get("seller"),
+            "seller_id": p.payload.get("seller_id"),
             "price_usd": p.payload.get("price_usd"),
             "consent_confirmed": p.payload.get("consent_confirmed"),
         } for p in points]
@@ -164,7 +165,8 @@ class VoiceMarketplace:
     # ----------------------------------------------------
 
     def onboard_voice(self, seller_name: str, voice_name: str, sample_wav_paths: List[str],
-                      description: str, price_usd: float = 0.0, consent_confirmed: bool = False) -> Dict[str, Any]:
+                      description: str, price_usd: float = 0.0, consent_confirmed: bool = False,
+                      seller_id: str = "local") -> Dict[str, Any]:
         """Full seller pipeline: validate samples -> denoise -> assemble the cloning
         reference -> register a listing with provenance and consent metadata.
 
@@ -225,6 +227,7 @@ class VoiceMarketplace:
                 "voice_ref_path": reference_wav,
                 "description": description,
                 "seller": seller_name,
+                "seller_id": seller_id or "local",
                 "price_usd": price_usd,
                 "consent_confirmed": True,
                 "sample_seconds": round(total_dur, 1),

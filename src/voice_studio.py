@@ -80,7 +80,7 @@ def _save_state(session: str, state: Dict[str, Any]) -> None:
 # Session lifecycle
 # ---------------------------------------------------------------------------
 
-def start_session(name: str, speaker: str) -> Optional[Dict[str, Any]]:
+def start_session(name: str, speaker: str, owner: str = "local") -> Optional[Dict[str, Any]]:
     session = _slug(name)
     if not session:
         return None
@@ -89,6 +89,7 @@ def start_session(name: str, speaker: str) -> Optional[Dict[str, Any]]:
         cmd_init(session, speaker or session)
         state = {
             "session": session, "speaker": speaker or session,
+            "owner": owner or "local",
             "clips": {},          # prompt_id -> latest QC record
             "questionnaire": {},
             "personas": [],
@@ -298,7 +299,7 @@ def publish(session: str, seller: str, description: str, price: float, consent: 
     listing = marketplace.onboard_voice(
         seller_name=seller or state["speaker"], voice_name=state["speaker"],
         sample_wav_paths=[ref], description=desc, price_usd=float(price or 0.0),
-        consent_confirmed=True)
+        consent_confirmed=True, seller_id=state.get("owner", "local"))
     consent_path = os.path.join(_dir(session), "consent.json")
     if os.path.exists(consent_path):
         with open(consent_path, encoding="utf-8") as f:
