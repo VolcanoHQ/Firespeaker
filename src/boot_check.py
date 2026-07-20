@@ -141,6 +141,8 @@ def run_boot_checks(fast: bool = False) -> Dict[str, Any]:
             detail = probe["detail"]
         if os.environ.get(_REEXEC_FLAG):
             status, detail = "warn", "running in CPU-only stub mode (GPU driver was wedged at boot; restart WSL to restore)"
+        policy = os.getenv("FIRESPEAKER_TTS_DEVICE", "auto")
+        detail += f" | TTS device policy: {policy}"
         checks.append(_check("torch/gpu", status, detail))
 
     # 4. Voice / model assets

@@ -181,7 +181,7 @@ def render_tier_preview(book: str, tier: int, scene_id: Optional[str] = None,
     with _SYNTH_LOCK:
         from src.production_mixer import resolve_line_wavs, assemble_scene
         from src.voice_synthesizer import VoiceSynthesizer
-        synth = VoiceSynthesizer(force_cpu=True)
+        synth = VoiceSynthesizer()
         # every speaker needs a drawer; unseen ones get a distinct builtin voice
         # via the name-hash pool (same policy as mix_production's minor cast)
         for char in sorted({l["character"] for l in lines}):

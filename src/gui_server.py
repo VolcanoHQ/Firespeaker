@@ -971,7 +971,7 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
                 pitch_semitones = drawer["modulation_config"].get("pitch", 0.0)
                 pitch_mod = 2.0 ** (pitch_semitones / 12.0)
             
-            synth = VoiceSynthesizer(mempalace_path="data/mempalace", force_cpu=True)
+            synth = VoiceSynthesizer(mempalace_path="data/mempalace")
             
             import uuid
             preview_filename = f"scratch/preview_{uuid.uuid4().hex}.wav"

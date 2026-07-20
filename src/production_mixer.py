@@ -485,7 +485,7 @@ def mix_voice_track(manifest_path: str, output_path: str, single_narrator: bool)
     book_stem = os.path.splitext(manifest.source_file)[0]
 
     from src.voice_synthesizer import VoiceSynthesizer
-    synth = VoiceSynthesizer(force_cpu=True)
+    synth = VoiceSynthesizer()
     needed = {"Narrator"} if single_narrator else {
         l.character for p in manifest.parts for c in p.chapters for s in c.scenes for l in s.lines}
     for char in sorted(needed):
@@ -673,7 +673,7 @@ def mix_production(manifest_path: str, output_path: str) -> Dict[str, Any]:
         logger.info(f"Loaded {len(overrides)} production line override(s).")
 
     from src.voice_synthesizer import VoiceSynthesizer
-    synth = VoiceSynthesizer(force_cpu=True)
+    synth = VoiceSynthesizer()
 
     # Auto-register dramatized minor-cast drawers (Sparrow 1, Old Mouse, ...) so
     # synthesis doesn't hit MissingDrawerError; each gets a distinct builtin voice

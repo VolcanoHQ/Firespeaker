@@ -46,7 +46,7 @@ class FirespeakerPipeline:
         # Initialize sub-engines
         self.analyzer = ManuscriptAnalyzer(use_gpu=False, production_tier=production_tier)
         self.palace = MemPalace(db_dir=self.mempalace_dir)
-        self.synth = VoiceSynthesizer(mempalace_path=self.mempalace_dir, force_cpu=True)
+        self.synth = VoiceSynthesizer(mempalace_path=self.mempalace_dir)
         self.mixer = AudioMixer()
 
     def register_voice_cast(self):

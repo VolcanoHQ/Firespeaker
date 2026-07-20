@@ -220,7 +220,18 @@ class VoiceSynthesizer:
 
     def __init__(self, mempalace_path: str = "data/mempalace", force_cpu: bool = False):
         self.mempalace_path = mempalace_path
-        self.force_cpu = force_cpu or not HAS_TORCH
+        # Device policy (T2-6): FIRESPEAKER_TTS_DEVICE = auto (default) | cpu | cuda.
+        # "auto" uses the GPU when preflight passes and falls back to CPU otherwise;
+        # "cpu" pins CPU (the old force_cpu behavior); "cuda" insists on trying the
+        # GPU even if a caller passed force_cpu. Callers should normally NOT pass
+        # force_cpu anymore -- the env policy is the single source of truth.
+        policy = os.getenv("FIRESPEAKER_TTS_DEVICE", "auto").strip().lower()
+        if policy == "cpu":
+            self.force_cpu = True
+        elif policy == "cuda":
+            self.force_cpu = not HAS_TORCH
+        else:
+            self.force_cpu = force_cpu or not HAS_TORCH
         
         # Lazy import of MemPalace to prevent circular dependency
         from src.spatial_memory import MemPalace
@@ -234,6 +245,22 @@ class VoiceSynthesizer:
     # ----------------------------------------------------
     # Pre-flight Resource Checker & VRAM Validation
     # ----------------------------------------------------
+
+    def _demote_xtts_to_cpu(self) -> bool:
+        """CUDA OOM mid-synthesis: move the loaded XTTS model to CPU and keep
+        rendering. A slower line beats a dead render job -- the job-level policy
+        everywhere in this codebase."""
+        if not (HAS_TORCH and self.xtts_model is not None):
+            return False
+        try:
+            self.xtts_model = self.xtts_model.to("cpu")
+            torch.cuda.empty_cache()
+            self.force_cpu = True
+            logger.warning("CUDA OOM during synthesis; XTTS demoted to CPU for the rest of this process.")
+            return True
+        except Exception as e:
+            logger.error(f"CPU demotion failed: {e}")
+            return False
 
     def check_preflight_resources(self, target_model: str) -> Dict[str, Any]:
         """
@@ -551,7 +578,12 @@ class VoiceSynthesizer:
                         if not part.strip():
                             continue
                         seg = raw_path + f".seg{pi}.wav"
-                        self.xtts_model.tts_to_file(text=part.strip(), language="en", file_path=seg, **synth_kwargs)
+                        try:
+                            self.xtts_model.tts_to_file(text=part.strip(), language="en", file_path=seg, **synth_kwargs)
+                        except RuntimeError as oom:
+                            if "out of memory" not in str(oom).lower() or not self._demote_xtts_to_cpu():
+                                raise
+                            self.xtts_model.tts_to_file(text=part.strip(), language="en", file_path=seg, **synth_kwargs)
                         seg_files.append(seg)
                         concat_items.append(seg)
                     concat_txt = raw_path + ".concat.txt"
@@ -565,12 +597,22 @@ class VoiceSynthesizer:
                         except OSError:
                             pass
                 else:
-                    self.xtts_model.tts_to_file(
-                        text=dialogue_text,
-                        language="en",
-                        file_path=raw_path,
-                        **synth_kwargs,
-                    )
+                    try:
+                        self.xtts_model.tts_to_file(
+                            text=dialogue_text,
+                            language="en",
+                            file_path=raw_path,
+                            **synth_kwargs,
+                        )
+                    except RuntimeError as oom:
+                        if "out of memory" not in str(oom).lower() or not self._demote_xtts_to_cpu():
+                            raise
+                        self.xtts_model.tts_to_file(
+                            text=dialogue_text,
+                            language="en",
+                            file_path=raw_path,
+                            **synth_kwargs,
+                        )
 
                 # Transcode to the pipeline-standard 22050Hz mono and apply modifiers
                 filter_str = _build_pitch_speed_filters(pitch_modifier, speed_modifier)
@@ -836,7 +878,7 @@ def main():
                 pass
                 
         # Initialize engine (forcing CPU mock mode for environment compliance)
-        synth = VoiceSynthesizer(mempalace_path=mempalace_dir, force_cpu=True)
+        synth = VoiceSynthesizer(mempalace_path=mempalace_dir)
         
         # Test 1: VRAM and resource checking API audit
         print("\n1. Testing Pre-flight Resource Checker:")

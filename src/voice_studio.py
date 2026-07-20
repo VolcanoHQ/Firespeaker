@@ -239,7 +239,7 @@ def preview(session: str, text: str, pitch: float = 0.0, speed: float = 1.0) -> 
     out = os.path.join(PREVIEW_DIR, f"{session}_preview_{int(time.time())}.wav")
     with _SYNTH_LOCK:
         from src.voice_synthesizer import VoiceSynthesizer
-        synth = VoiceSynthesizer(force_cpu=True)
+        synth = VoiceSynthesizer()
         drawer = _drawer_name(session)
         if not synth.palace.get_character_drawer(drawer):
             synth.palace.register_character(character_name=drawer, voice_ref_path=ref,
