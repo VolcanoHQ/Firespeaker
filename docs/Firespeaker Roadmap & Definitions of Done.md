@@ -221,6 +221,16 @@ redeem → cookie → me → API 200 → logout → 401.
 *Note: still a launch gate for any non-local marketplace exposure; the server
 remains local-only until auth is hardened (HTTPS, rate limits) — tracked in T2-5.*
 
+### T2-7 · Account panel — ✅ DONE (item D of the VolcanoHQ rollout)
+**DoD:** header account chip → slide-over panel: profile edit (display name,
+roles author/voice_actor/producer, bio via `/api/auth/profile`) + My Studio
+(projects, voice listings by seller_id, studio datasets by owner, recent
+renders) from `GET /api/account/overview`. Verified both modes: auth-off shows
+the implicit Local Studio profile with counts matching the stores exactly
+(24 projects / 2 renders); auth-on refused unauthenticated (401), profile
+round-tripped (name+3 roles+bio), and the overview scoped to the session user
+(1 project, 3 renders).
+
 ### T2-2 · User-owned projects — ✅ DONE
 **DoD:**
 - [x] `ProjectDB` extended in place (idempotent ALTER TABLE migration: owner,
@@ -276,9 +286,15 @@ provider-policy section updated.
 **DoD:** Sellers/buyers are authenticated users; consent + license ledger reference
 user ids; payment processing on purchase; payout bookkeeping for sellers.
 
-### T2-6 · GPU synthesis path / render queue — ⬜ OPEN
-**DoD:** XTTS on GPU with per-chapter incremental rendering; a novel renders in
-hours, not overnight; queue survives restarts.
+### T2-6 · GPU synthesis path / render queue — 🔶 PARTIAL (GPU half DONE, `a0c0572`)
+**DoD (GPU half — done):**
+- [x] `FIRESPEAKER_TTS_DEVICE` policy (auto/cpu/cuda) resolved in one place;
+      all call sites defer to it; preflight VRAM validation; CUDA OOM demotes
+      to CPU mid-render instead of killing the job; boot check reports policy.
+- [x] Measured on identical text (RTX A3000): synthesis RTF **0.484 GPU vs
+      1.656 CPU** — 3.4× faster, now faster than realtime.
+**Remaining:** per-chapter incremental rendering + a queue beyond the current
+one-job-per-book detached workers (which do already survive restarts).
 
 ### T3-Q1 · Scene Mixer (advanced mode) — ✅ DONE
 **DoD:**

@@ -322,6 +322,53 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
             return
         if not self._auth_gate(path):
             return
+        if path == "/api/account/overview":
+            from src import user_db
+            from src.project_db import ProjectDB
+            import glob as _glob
+            try:
+                user = self._current_user()
+                uid = user["user_id"] if user else "local"
+                profile = user_db.get_profile(uid)
+                projects = ProjectDB().list_product_projects(owner=uid)
+                listings = [l for l in self._get_marketplace().list_all()
+                            if (l.get("seller_id") or "local") == uid]
+                datasets = []
+                for sp in _glob.glob("data/voice_datasets/*/studio_session.json"):
+                    try:
+                        with open(sp, encoding="utf-8") as f:
+                            st = json.load(f)
+                        if (st.get("owner") or "local") == uid:
+                            datasets.append({"session": st.get("session"),
+                                             "speaker": st.get("speaker"),
+                                             "built": st.get("built"),
+                                             "published": st.get("published")})
+                    except Exception:
+                        continue
+                jobs = []
+                for jp in sorted(_glob.glob("data/render_jobs/*.json"), reverse=True):
+                    try:
+                        with open(jp, encoding="utf-8") as f:
+                            j = json.load(f)
+                        if (j.get("owner") or "local") == uid:
+                            jobs.append({"job_id": j["job_id"], "book": j["book"],
+                                         "tier": j["tier"], "status": j["status"]})
+                    except Exception:
+                        continue
+                payload = {"profile": profile, "projects": projects,
+                           "voice_listings": listings, "datasets": datasets,
+                           "renders": jobs[:10]}
+                resp = json.dumps(payload, default=str).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(resp)))
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(resp)
+            except Exception as e:
+                logger.error(f"account overview error: {e}")
+                self.send_json_error(500, f"Overview error: {e}")
+            return
         if path == "/" or path == "/index.html":
             self.serve_static_file("src/static/index.html", "text/html")
         elif path == "/console":

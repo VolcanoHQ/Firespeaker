@@ -94,6 +94,15 @@
   audio { display: none; }
   @keyframes rot { to { transform: rotate(360deg); } }
 
+  /* ---------- account panel ---------- */
+  #accountPanel { position: fixed; top: 0; right: -420px; width: min(400px, 92vw); height: 100vh;
+    background: var(--panel); border-left: 2px solid var(--accent); z-index: 90;
+    transition: right .2s ease; overflow-y: auto; padding: 18px; }
+  #accountPanel.open { right: 0; }
+  #accountPanel h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .8px;
+    color: var(--dim); margin: 16px 0 8px; }
+  #accountPanel .item { font-size: 12.5px; padding: 5px 0; border-bottom: 1px solid #22262e; }
+
   /* ---------- confirm dialog (any destructive scene-slicer action) ---------- */
   #confirmOverlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 100;
     display: flex; align-items: center; justify-content: center; }
@@ -143,6 +152,7 @@
 <header>
   <h1>VOLCANO <span>STUDIOS</span> · Review Console</h1>
   <span class="sub">Phase 1 — read-only artifact review</span>
+  <span id="accountChip" style="font-size:12px;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:3px 12px;cursor:pointer">👤 …</span>
   <span id="healthChip" title="environment health" style="font-size:12px;color:var(--dim);background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:3px 12px;cursor:default">env…</span>
   <span id="progressChip">idle</span>
 </header>
@@ -161,6 +171,32 @@
   <div id="scenePane" class="pane">
     <div id="sceneView"><div class="empty">select a scene</div></div>
   </div>
+</div>
+<div id="accountPanel">
+  <div style="display:flex;align-items:center;gap:10px">
+    <b id="acctName" style="font-size:15px">…</b>
+    <button class="ghost" id="acctClose" style="margin-left:auto;padding:3px 10px">✕</button>
+  </div>
+  <div id="acctEmail" class="hint"></div>
+  <h3>Profile</h3>
+  <label class="hint">Display name</label>
+  <input type="text" id="acctDisplay" style="width:100%;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:7px 10px;font:inherit">
+  <label class="hint" style="display:block;margin-top:8px">Roles</label>
+  <div class="row" id="acctRoles" style="gap:12px;font-size:12.5px">
+    <label><input type="checkbox" value="author"> author</label>
+    <label><input type="checkbox" value="voice_actor"> voice actor</label>
+    <label><input type="checkbox" value="producer"> producer</label>
+  </div>
+  <label class="hint" style="display:block;margin-top:8px">Bio</label>
+  <textarea id="acctBio" style="width:100%;min-height:52px;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:7px 10px;font:inherit;font-size:12.5px"></textarea>
+  <div class="row" style="margin-top:10px">
+    <button id="acctSave" style="padding:6px 16px">Save profile</button>
+    <span id="acctStatus" class="hint"></span>
+  </div>
+  <h3>My projects</h3><div id="acctProjects" class="hint">…</div>
+  <h3>My voice listings</h3><div id="acctListings" class="hint">…</div>
+  <h3>My voice datasets</h3><div id="acctDatasets" class="hint">…</div>
+  <h3>Recent renders</h3><div id="acctRenders" class="hint">…</div>
 </div>
 <div id="mixerDock">
   <div id="mixerHead">
@@ -797,6 +833,48 @@ async function loadHealth() {
       : "all environment checks passed";
   } catch { $("#healthChip").textContent = "env ?"; }
 }
+/* ---------- account panel ---------- */
+async function openAccount() {
+  $("#accountPanel").classList.add("open");
+  try {
+    const o = await api("/api/account/overview");
+    const p = o.profile || {};
+    $("#acctName").textContent = p.display_name || "Local Studio";
+    $("#acctEmail").textContent = p.email || "auth off — implicit local profile (enable FIRESPEAKER_AUTH=on for real accounts)";
+    $("#acctDisplay").value = p.display_name || "";
+    $("#acctBio").value = p.bio || "";
+    document.querySelectorAll("#acctRoles input").forEach(cb => cb.checked = (p.roles || []).includes(cb.value));
+    const disabled = !!p.local;
+    ["acctDisplay", "acctBio", "acctSave"].forEach(id => $("#" + id).disabled = disabled);
+    document.querySelectorAll("#acctRoles input").forEach(cb => cb.disabled = disabled);
+    $("#acctProjects").innerHTML = (o.projects || []).map(x =>
+      `<div class="item">${esc(x.book_stem)} <span class="chip">tier ${x.tier}</span> <span class="chip">${esc(x.plan)}</span></div>`).join("") || "none yet";
+    $("#acctListings").innerHTML = (o.voice_listings || []).map(x =>
+      `<div class="item">${esc(x.voice_name)} <span class="chip">$${x.price_usd ?? 0}</span></div>`).join("") || "none yet";
+    $("#acctDatasets").innerHTML = (o.datasets || []).map(x =>
+      `<div class="item">${esc(x.session)} ${x.built ? '<span class="chip" style="color:var(--ok)">built</span>' : ""}${x.published ? ' <span class="chip" style="color:var(--ok)">published</span>' : ""}</div>`).join("") || "none yet";
+    $("#acctRenders").innerHTML = (o.renders || []).map(x =>
+      `<div class="item">${esc(x.book)} · tier ${x.tier} · ${esc(x.status)}</div>`).join("") || "none yet";
+  } catch (e) { $("#acctStatus").textContent = "failed: " + e.message; }
+}
+$("#accountChip").addEventListener("click", openAccount);
+$("#acctClose").addEventListener("click", () => $("#accountPanel").classList.remove("open"));
+$("#acctSave").addEventListener("click", async () => {
+  const roles = [...document.querySelectorAll("#acctRoles input:checked")].map(cb => cb.value);
+  const r = await fetch("/api/auth/profile", { method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ display_name: $("#acctDisplay").value, roles, bio: $("#acctBio").value }) });
+  $("#acctStatus").textContent = r.ok ? "saved ✓" : "save failed";
+  if (r.ok) loadAccountChip();
+});
+async function loadAccountChip() {
+  try {
+    const o = await api("/api/account/overview");
+    $("#accountChip").textContent = "👤 " + ((o.profile || {}).display_name || "Local Studio");
+  } catch { $("#accountChip").textContent = "👤 local"; }
+}
+loadAccountChip();
+
 $("#uploadBtn").addEventListener("click", () => $("#uploadInput").click());
 $("#uploadInput").addEventListener("change", async () => {
   const file = $("#uploadInput").files[0];
