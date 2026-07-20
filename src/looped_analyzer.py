@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Firespeaker Hierarchical Looped Analysis Engine
+Caldera Engine Hierarchical Looped Analysis Engine
 Implements the 6-loop Hierarchical Looped Analysis Algorithm ruleset:
 - Loop 1: Metadata Extraction
 - Loop 2: Macro-Structure (Part/Volume/Act)

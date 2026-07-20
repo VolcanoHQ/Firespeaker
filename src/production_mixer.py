@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Firespeaker Production Mixer (Chain D: Graphic-Audio assembly)
+Caldera Engine Production Mixer (Chain D: Graphic-Audio assembly)
 
 Assembles a Tier 3 full-production audiobook from:
   - per-line character voice WAVs (XTTS, cached or synthesized on demand)
@@ -790,7 +790,7 @@ def mix_production(manifest_path: str, output_path: str) -> Dict[str, Any]:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Firespeaker Production Mixer (Chain D: Tier 3 assembly / Tier 1 narration)")
+    parser = argparse.ArgumentParser(description="Caldera Engine Production Mixer (Chain D: Tier 3 assembly / Tier 1 narration)")
     parser.add_argument("--manifest", type=str, required=True, help="ManuscriptManifest JSON (Tier 3 additionally needs scene_director artifacts)")
     parser.add_argument("--output", type=str, required=True, help="Output master WAV path")
     parser.add_argument("--tier1", action="store_true", help="Single-narrator audiobook: one voice, no music/SFX/casting")

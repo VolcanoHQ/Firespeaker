@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Utility script to parse a single text block (paragraph) through Firespeaker's hierarchical parser.
+Utility script to parse a single text block (paragraph) through Caldera Engine's hierarchical parser.
 It leverages the existing ManuscriptAnalyzer.parse_manuscript_for_segment method to produce
 the detailed Studio Script block, including the confidence score.
 

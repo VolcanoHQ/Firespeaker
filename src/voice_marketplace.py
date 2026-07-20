@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Firespeaker Voice Marketplace
+Caldera Engine Voice Marketplace
 Uses Qdrant vector database to store and semantically retrieve voice marketplace audio references
 by projecting user description prompts into an acoustic embedding space (cloned CLAP vectors).
 """
@@ -348,7 +348,7 @@ def main():
     import argparse
     import json as _json
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    parser = argparse.ArgumentParser(description="Firespeaker Voice Marketplace")
+    parser = argparse.ArgumentParser(description="Caldera Engine Voice Marketplace")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     p = sub.add_parser("onboard", help="Seller: list a voice from sample WAVs")

@@ -2,14 +2,14 @@
 # -*- coding: utf-8 -*-
 
 """
-Firespeaker Audio Generation (Chain C: real music/stinger assets)
+Caldera Engine Audio Generation (Chain C: real music/stinger assets)
 
 Generates music beds and stingers locally with Meta's MusicGen (open weights) via
 the transformers library -- deliberately NOT the audiocraft package, whose old
 torch pins would break this environment's TTS stack.
 
 All clips are cached by prompt+duration hash under data/generated_audio/, so
-re-mixing a book never regenerates audio. Set FIRESPEAKER_MUSICGEN=off to force
+re-mixing a book never regenerates audio. Set CALDERA_MUSICGEN=off to force
 the production mixer back onto placeholder assets.
 """
 
@@ -33,7 +33,7 @@ _device = None
 
 
 def _is_enabled() -> bool:
-    return os.getenv("FIRESPEAKER_MUSICGEN", "on").strip().lower() not in ("off", "0", "false")
+    return os.getenv("CALDERA_MUSICGEN", "on").strip().lower() not in ("off", "0", "false")
 
 
 def _load_model():
@@ -138,7 +138,7 @@ def _load_sfx_model():
     global _sfx_pipe, _sfx_device
     if _sfx_pipe is not None:
         return True
-    if os.getenv("FIRESPEAKER_SFXGEN", "on").strip().lower() in ("off", "0", "false"):
+    if os.getenv("CALDERA_SFXGEN", "on").strip().lower() in ("off", "0", "false"):
         return False
     try:
         import torch

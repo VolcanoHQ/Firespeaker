@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Firespeaker Project State & Orchestration Database
+Caldera Engine Project State & Orchestration Database
 Manages relational states for projects, chapters, scene slicing, and lookahead queues.
 """
 
@@ -352,7 +352,7 @@ def main():
     import argparse
     from src.render_job import find_source
 
-    parser = argparse.ArgumentParser(description="Firespeaker project database")
+    parser = argparse.ArgumentParser(description="Caldera Engine project database")
     sub = parser.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("backfill", help="Create project rows for every data/corpus/pipeline book")
     s.add_argument("--owner", default="local", help="user_id or 'local'")

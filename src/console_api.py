@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Firespeaker Review Console API (Phase 1: read-only).
+Caldera Engine Review Console API (Phase 1: read-only).
 
 Pure functions over the pipeline's file artifacts -- no pipeline imports, no
 LLM calls, no mutation. The console reads what the loops, the director crew,

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Firespeaker Tier 1 LLM Enrichment Eval Harness
+Caldera Engine Tier 1 LLM Enrichment Eval Harness
 
 Runs Tier 1 ingestion with enable_llm_enrichment=True against a corpus book,
 then diffs the LLM-attributed speaker/segment-type values against the

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Firespeaker Render Jobs -- the one-button path from manuscript to audiobook.
+Caldera Engine Render Jobs -- the one-button path from manuscript to audiobook.
 
 start_render() spawns a DETACHED worker process (survives server restarts) that
 runs: ingest (with --resume-enrichment semantics for tier >= 2, so quota
@@ -189,7 +189,7 @@ def run_job(job_id: str) -> int:
 
 
 def main():
-    p = argparse.ArgumentParser(description="Firespeaker render job runner")
+    p = argparse.ArgumentParser(description="Caldera Engine render job runner")
     p.add_argument("--run", metavar="JOB_ID", help="Execute a queued job (worker mode)")
     p.add_argument("--start", metavar="BOOK", help="Queue + spawn a render for a book")
     p.add_argument("--tier", type=int, default=1)

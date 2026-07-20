@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Firespeaker Ingestion & Script Analysis Pipeline
+Caldera Engine Ingestion & Script Analysis Pipeline
 Handles manuscript segmentation, character entity resolution (via xCoRe),
 dialogue extraction, and emotional sentiment mapping.
 """
@@ -21,7 +21,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
-logger = logging.getLogger("FirespeakerNLP")
+logger = logging.getLogger("CalderaNLP")
 
 # Standard English pronouns to ignore during character extraction
 PRONOUNS = {
@@ -125,7 +125,7 @@ def _is_valid_spacy_person_entity(name: str) -> bool:
 class TextToScriptPipeline:
     """
     Handles deterministic Stage 1 Typographic Normalization 
-    and Stage 3 Direct Quote Extraction for Firespeaker Studio.
+    and Stage 3 Direct Quote Extraction for Volcano Studios.
     """
     
     def __init__(self):
@@ -281,12 +281,12 @@ def _detect_local_ollama() -> Optional[str]:
             tags = json.loads(req.read().decode('utf-8'))
             models = [m["name"] for m in tags.get("models", [])]
             logger.info(f"Detected local Ollama models: {models}")
-            env_override = os.getenv("FIRESPEAKER_OLLAMA_MODEL")
+            env_override = os.getenv("CALDERA_OLLAMA_MODEL")
             if env_override:
                 for model in models:
                     if model == env_override:
                         return model
-                logger.warning(f"FIRESPEAKER_OLLAMA_MODEL='{env_override}' is not installed. Available models: {models}")
+                logger.warning(f"CALDERA_OLLAMA_MODEL='{env_override}' is not installed. Available models: {models}")
 
             lowered_models = [(model, model.lower()) for model in models]
             for pattern in OLLAMA_MODEL_PREFERENCE_PATTERNS:
@@ -1029,7 +1029,7 @@ Return ONLY the valid JSON object.
 def main():
     """CLI Entrypoint for testing and verification."""
     import argparse
-    parser = argparse.ArgumentParser(description="Firespeaker Manuscript Script Ingestion Pipeline")
+    parser = argparse.ArgumentParser(description="Caldera Engine Manuscript Script Ingestion Pipeline")
     parser.add_argument("--input", type=str, help="Path to raw manuscript text file")
     parser.add_argument("--output", type=str, default="data/scene_script.json", help="Path to save output JSON metadata")
     parser.add_argument("--cpu", action="store_true", help="Force CPU operation")
@@ -1038,7 +1038,7 @@ def main():
     args = parser.parse_args()
     
     if args.test:
-        print("\n=== RUNNING FIRESPEAKER INGESTION SELF-TEST ===")
+        print("\n=== RUNNING CALDERA ENGINE INGESTION SELF-TEST ===")
         # Dynamic creation of test text
         test_dir = "scratch"
         os.makedirs(test_dir, exist_ok=True)

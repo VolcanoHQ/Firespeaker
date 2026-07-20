@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Firespeaker Review Console</title>
+<title>Caldera Engine Review Console</title>
 <style>
   :root {
     --bg: #16181d; --panel: #1e2128; --panel2: #23272f; --line: #2e333d;
@@ -840,7 +840,7 @@ async function openAccount() {
     const o = await api("/api/account/overview");
     const p = o.profile || {};
     $("#acctName").textContent = p.display_name || "Local Studio";
-    $("#acctEmail").textContent = p.email || "auth off — implicit local profile (enable FIRESPEAKER_AUTH=on for real accounts)";
+    $("#acctEmail").textContent = p.email || "auth off — implicit local profile (enable CALDERA_AUTH=on for real accounts)";
     $("#acctDisplay").value = p.display_name || "";
     $("#acctBio").value = p.bio || "";
     document.querySelectorAll("#acctRoles input").forEach(cb => cb.checked = (p.roles || []).includes(cb.value));

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Firespeaker Spatial Memory Engine (MemPalace)
+Caldera Engine Spatial Memory Engine (MemPalace)
 Provides Layer 0 Persona/Timbre Storage, relational context indexing (SQLite),
 and vector-based similarity search (ChromaDB / Cosine Similarity Fallback)
 to condition expressive voice cloning (XTTS-v2 and Bark) dynamically.
@@ -510,7 +510,7 @@ class MemPalace:
 def main():
     """CLI and self-test suite for the Spatial Memory Engine."""
     import argparse
-    parser = argparse.ArgumentParser(description="Firespeaker MemPalace Database Manager")
+    parser = argparse.ArgumentParser(description="Caldera Engine MemPalace Database Manager")
     parser.add_argument("--init", action="store_true", help="Initialize Spatial Memory relational engine tables")
     parser.add_argument("--test", action="store_true", help="Run comprehensive schema & search self-test")
     args = parser.parse_args()

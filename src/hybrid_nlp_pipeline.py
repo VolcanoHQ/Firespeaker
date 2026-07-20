@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Firespeaker Hybrid NLP Ingestion Pipeline
+Caldera Engine Hybrid NLP Ingestion Pipeline
 Integrates deterministic spaCy parsing, Llama 3.1 8B API fallback, 
 and distilled RoBERTa emotional prosody mapping.
 """

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Firespeaker Sound Design, Sidechain Mixing, & ACX Mastering Engine
+Caldera Engine Sound Design, Sidechain Mixing, & ACX Mastering Engine
 Handles mood-to-ambient mapping, UCS sfx categorization, dynamic FFmpeg
 sidechain compressor filter complex generation, and mathematical
 post-processing ACX loudness QC validations.
@@ -520,12 +520,12 @@ class AudioMixer:
 def main():
     """CLI testing harness to execute Component 3 validation checks."""
     import argparse
-    parser = argparse.ArgumentParser(description="Firespeaker Sidechain Mixer & ACX Compliance Verification Harness")
+    parser = argparse.ArgumentParser(description="Caldera Engine Sidechain Mixer & ACX Compliance Verification Harness")
     parser.add_argument("--test", action="store_true", help="Run comprehensive mood mapping, sidechain build, and ACX QC self-test")
     args = parser.parse_args()
     
     if args.test:
-        print("\n=== RUNNING FIRESPEAKER SIDECHAIN MIXER & MASTERING COMPLIANCE HARNESS ===")
+        print("\n=== RUNNING CALDERA ENGINE SIDECHAIN MIXER & MASTERING COMPLIANCE HARNESS ===")
         
         mixer = AudioMixer()
         

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Firespeaker Voice Dataset Builder.
+Caldera Engine Voice Dataset Builder.
 
 The guided lane from "a person with a microphone" to a production voice asset:
     init    -> personalized recording script (prompt sheet)
@@ -10,7 +10,7 @@ The guided lane from "a person with a microphone" to a production voice asset:
     build   -> normalized dataset + manifest + zero-shot/emotion reference sets
     onboard -> hand the reference set to the voice marketplace
 
-Methodology: docs/Firespeaker Voice Dataset Methodology.md. Scripted recording
+Methodology: docs/Caldera Engine Voice Dataset Methodology.md. Scripted recording
 means transcripts are known -- no ASR pass required.
 """
 
@@ -91,7 +91,7 @@ def cmd_init(name: str, speaker: str) -> None:
     lines = [
         f"# Recording script for voice dataset '{name}' ({speaker})",
         "",
-        "Read docs/Firespeaker Voice Dataset Methodology.md section 2 first (room, mic, format).",
+        "Read docs/Caldera Engine Voice Dataset Methodology.md section 2 first (room, mic, format).",
         "Record ONE WAV PER PROMPT, named exactly by its id (e.g. A01.wav), into any folder.",
         f"Then run:  python -m src.voice_dataset intake --name {name} --input <that folder>",
         "",
@@ -316,7 +316,7 @@ def cmd_onboard(name: str, seller: str, description: str, price: float, consent:
 
 
 def main():
-    p = argparse.ArgumentParser(description="Firespeaker Voice Dataset Builder")
+    p = argparse.ArgumentParser(description="Caldera Engine Voice Dataset Builder")
     sub = p.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("init"); s.add_argument("--name", required=True); s.add_argument("--speaker", default="")
     s = sub.add_parser("intake"); s.add_argument("--name", required=True); s.add_argument("--input", required=True)

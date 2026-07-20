@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Firespeaker Hierarchical Manuscript Parser
+Caldera Engine Hierarchical Manuscript Parser
 Decomposes books into structured nested hierarchies: Part -> Chapter -> Scene
 and compiles scene-level character rosters, dialogue metrics, and transcripts.
 Feeds interactive GUI navigation trees.
@@ -715,7 +715,7 @@ ManuscriptAnalyzer.parse_manuscript_for_segment = parse_manuscript_for_segment
 def main():
     """CLI and self-test harness for Hierarchical Parsing."""
     import argparse
-    parser = argparse.ArgumentParser(description="Firespeaker Hierarchical Navigation Parser")
+    parser = argparse.ArgumentParser(description="Caldera Engine Hierarchical Navigation Parser")
     parser.add_argument("--input", type=str, help="Path to manuscript book text file to analyze")
     parser.add_argument("--output", type=str, default="scratch/hierarchical_script_index.json", help="Path to save output navigation JSON index")
     parser.add_argument("--test", action="store_true", help="Run self-test on Time Machine Chapter 1")

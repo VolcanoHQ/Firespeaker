@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Firespeaker Analysis Progress Tracker
+Caldera Engine Analysis Progress Tracker
 
 Every pipeline stage reports its position (book, stage, current/total) here;
 state is written atomically to data/analysis_progress.json so progress is
@@ -117,7 +117,7 @@ def _render(state: Dict[str, Any]) -> str:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Firespeaker analysis progress viewer")
+    parser = argparse.ArgumentParser(description="Caldera Engine analysis progress viewer")
     parser.add_argument("--watch", action="store_true", help="Live-updating view (refreshes every 3s)")
     args = parser.parse_args()
 
@@ -127,7 +127,7 @@ def main():
     try:
         while True:
             os.system("clear" if os.name != "nt" else "cls")
-            print(f"Firespeaker Analysis Progress  ({time.strftime('%H:%M:%S')})")
+            print(f"Caldera Engine Analysis Progress  ({time.strftime('%H:%M:%S')})")
             print(_render(_load()))
             time.sleep(3)
     except KeyboardInterrupt:

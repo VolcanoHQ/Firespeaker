@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Firespeaker Mix Timeline -- the scene as a serialized DAW session.
+Caldera Engine Mix Timeline -- the scene as a serialized DAW session.
 
 Read side of the advanced mixer: every lane the assembly actually mixes
 (voice / music / ambience / sfx), with timestamps computed the same

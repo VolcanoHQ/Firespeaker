@@ -1,24 +1,24 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Firespeaker Studio - Manuscript Navigator & Profiler</title>
-    
+    <title>Volcano Studios - Manuscript Navigator & Profiler</title>
+
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    
+
     <style>
-        :root {
+         :root {
             --bg-dark: #0b0f19;
             --bg-deep: #030712;
             --bg-card: rgba(17, 24, 39, 0.6);
             --bg-card-hover: rgba(31, 41, 55, 0.8);
             --border-color: rgba(255, 255, 255, 0.08);
             --border-glow: rgba(139, 92, 246, 0.25);
-            
             --accent-violet: #8b5cf6;
             --accent-violet-glow: rgba(139, 92, 246, 0.5);
             --accent-teal: #14b8a6;
@@ -29,32 +29,26 @@
             --accent-rose-glow: rgba(244, 63, 94, 0.5);
             --accent-blue: #3b82f6;
             --accent-blue-glow: rgba(59, 130, 246, 0.5);
-            
             --text-main: #f8fafc;
             --text-muted: #94a3b8;
             --text-dark: #64748b;
-            
             --font-display: 'Outfit', sans-serif;
             --font-mono: 'JetBrains Mono', monospace;
-            
             --radius-sm: 8px;
             --radius-md: 16px;
             --radius-lg: 24px;
             --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
-
+        
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
         }
-
+        
         body {
             background-color: var(--bg-deep);
-            background-image: 
-                radial-gradient(at 10% 10%, rgba(139, 92, 246, 0.07) 0px, transparent 50%),
-                radial-gradient(at 90% 90%, rgba(20, 184, 166, 0.07) 0px, transparent 50%),
-                radial-gradient(at 50% 50%, rgba(3, 7, 18, 1) 0px, rgba(3, 7, 18, 0.9) 100%);
+            background-image: radial-gradient(at 10% 10%, rgba(139, 92, 246, 0.07) 0px, transparent 50%), radial-gradient(at 90% 90%, rgba(20, 184, 166, 0.07) 0px, transparent 50%), radial-gradient(at 50% 50%, rgba(3, 7, 18, 1) 0px, rgba(3, 7, 18, 0.9) 100%);
             background-attachment: fixed;
             color: var(--text-main);
             font-family: var(--font-display);
@@ -63,23 +57,26 @@
             display: flex;
             flex-direction: column;
         }
-
         /* Webkit Scrollbars */
-        ::-webkit-scrollbar {
+        
+         ::-webkit-scrollbar {
             width: 8px;
             height: 8px;
         }
-        ::-webkit-scrollbar-track {
+        
+         ::-webkit-scrollbar-track {
             background: rgba(3, 7, 18, 0.5);
         }
-        ::-webkit-scrollbar-thumb {
+        
+         ::-webkit-scrollbar-thumb {
             background: rgba(255, 255, 255, 0.1);
             border-radius: 4px;
         }
-        ::-webkit-scrollbar-thumb:hover {
+        
+         ::-webkit-scrollbar-thumb:hover {
             background: rgba(255, 255, 255, 0.25);
         }
-
+        
         header {
             padding: 16px 40px;
             background: rgba(3, 7, 18, 0.4);
@@ -90,13 +87,13 @@
             align-items: center;
             z-index: 10;
         }
-
+        
         .logo-container {
             display: flex;
             align-items: center;
             gap: 12px;
         }
-
+        
         .logo-icon {
             width: 40px;
             height: 40px;
@@ -110,7 +107,7 @@
             font-size: 20px;
             color: #fff;
         }
-
+        
         .logo-text h1 {
             font-size: 20px;
             font-weight: 700;
@@ -119,7 +116,7 @@
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
-
+        
         .logo-text p {
             font-size: 10px;
             color: var(--accent-teal);
@@ -127,12 +124,12 @@
             letter-spacing: 1px;
             text-transform: uppercase;
         }
-
+        
         .global-tabs {
             display: flex;
             gap: 8px;
         }
-
+        
         .btn-global-tab {
             background: transparent;
             border: 1px solid transparent;
@@ -145,20 +142,20 @@
             font-size: 14px;
             transition: var(--transition);
         }
-
+        
         .btn-global-tab:hover {
             color: var(--text-main);
             background: rgba(255, 255, 255, 0.02);
         }
-
+        
         .btn-global-tab.active {
             color: var(--text-main);
             background: rgba(255, 255, 255, 0.05);
             border-color: var(--border-color);
             box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
         }
-
         /* Glassmorphism Card styling */
+        
         .glass-card {
             background: var(--bg-card);
             backdrop-filter: blur(16px);
@@ -167,11 +164,11 @@
             box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
             transition: var(--transition);
         }
-
+        
         .glass-card:hover {
             border-color: rgba(255, 255, 255, 0.12);
         }
-
+        
         .btn-upload {
             background: linear-gradient(135deg, var(--accent-violet), rgba(139, 92, 246, 0.8));
             border: none;
@@ -188,20 +185,20 @@
             box-shadow: 0 0 15px var(--accent-violet-glow);
             transition: var(--transition);
         }
-
+        
         .btn-upload:hover {
             transform: translateY(-2px);
             box-shadow: 0 0 25px var(--accent-violet-glow);
         }
-
+        
         .btn-upload:disabled {
             opacity: 0.5;
             cursor: not-allowed;
             transform: none;
             box-shadow: none;
         }
-
         /* Modals */
+        
         .modal {
             position: fixed;
             top: 0;
@@ -218,12 +215,12 @@
             pointer-events: none;
             transition: var(--transition);
         }
-
+        
         .modal.active {
             opacity: 1;
             pointer-events: auto;
         }
-
+        
         .modal-content {
             background: var(--bg-dark);
             border: 1px solid var(--border-color);
@@ -235,23 +232,23 @@
             transform: scale(0.9);
             transition: var(--transition);
         }
-
+        
         .modal.active .modal-content {
             transform: scale(1);
         }
-
+        
         .modal-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 24px;
         }
-
+        
         .modal-header h2 {
             font-size: 20px;
             font-weight: 700;
         }
-
+        
         .btn-close {
             background: transparent;
             border: none;
@@ -259,19 +256,20 @@
             font-size: 24px;
             cursor: pointer;
         }
-
+        
         .input-group {
             margin-bottom: 20px;
         }
-
+        
         .input-group label {
             display: block;
             margin-bottom: 8px;
             font-size: 13px;
             color: var(--text-muted);
         }
-
-        .input-group input[type="text"], select {
+        
+        .input-group input[type="text"],
+        select {
             width: 100%;
             background: var(--bg-deep);
             border: 1px solid var(--border-color);
@@ -282,7 +280,7 @@
             outline: none;
             transition: var(--transition);
         }
-
+        
         .input-group textarea {
             width: 100%;
             height: 200px;
@@ -296,16 +294,16 @@
             outline: none;
             resize: none;
         }
-
         /* App container layout */
+        
         .app-container {
             display: flex;
             flex-grow: 1;
             overflow: hidden;
             height: calc(100vh - 73px);
         }
-
         /* Sidebar styling */
+        
         .sidebar {
             background: rgba(3, 7, 18, 0.2);
             border-right: 1px solid var(--border-color);
@@ -317,7 +315,7 @@
             width: 320px;
             flex-shrink: 0;
         }
-
+        
         .sidebar-title {
             font-size: 12px;
             font-weight: 700;
@@ -326,12 +324,12 @@
             color: var(--text-dark);
             margin-bottom: 12px;
         }
-
         /* Tree view nodes */
+        
         .tree-node {
             margin-bottom: 8px;
         }
-
+        
         .tree-header {
             display: flex;
             align-items: center;
@@ -343,33 +341,33 @@
             color: var(--text-muted);
             transition: var(--transition);
         }
-
+        
         .tree-header:hover {
             background: rgba(255, 255, 255, 0.03);
             color: var(--text-main);
         }
-
+        
         .tree-icon {
             font-size: 10px;
             color: var(--text-dark);
             transition: transform 0.2s;
         }
-
+        
         .tree-header.expanded .tree-icon {
             transform: rotate(90deg);
             color: var(--accent-violet);
         }
-
+        
         .tree-children {
             display: none;
             padding-left: 20px;
             margin-top: 4px;
         }
-
+        
         .tree-children.active {
             display: block;
         }
-
+        
         .scene-leaf {
             display: flex;
             justify-content: space-between;
@@ -382,18 +380,18 @@
             color: var(--text-muted);
             transition: var(--transition);
         }
-
+        
         .scene-leaf:hover {
             background: rgba(255, 255, 255, 0.02);
             color: var(--text-main);
         }
-
+        
         .scene-leaf.active {
             background: rgba(139, 92, 246, 0.1);
             color: var(--accent-violet);
             font-weight: 600;
         }
-
+        
         .scene-badge {
             font-family: var(--font-mono);
             font-size: 10.5px;
@@ -403,8 +401,8 @@
             padding: 1px 6px;
             border-radius: 4px;
         }
-
         /* Workspace contents */
+        
         .workspace-panel {
             flex: 1;
             display: flex;
@@ -412,18 +410,18 @@
             overflow: hidden;
             position: relative;
         }
-
+        
         .global-tab-pane {
             display: none;
             width: 100%;
             height: 100%;
         }
-
+        
         .global-tab-pane.active {
             display: flex;
             flex-direction: column;
         }
-
+        
         .placeholder-box {
             display: flex;
             flex-direction: column;
@@ -435,14 +433,14 @@
             margin: auto;
             gap: 16px;
         }
-
+        
         .placeholder-icon {
             font-size: 48px;
             color: var(--text-dark);
             animation: float 4s ease-in-out infinite;
         }
-
         /* Spinner */
+        
         .loading-overlay {
             position: absolute;
             top: 0;
@@ -458,11 +456,11 @@
             justify-content: center;
             gap: 16px;
         }
-
+        
         .loading-overlay.active {
             display: flex;
         }
-
+        
         .spinner {
             width: 50px;
             height: 50px;
@@ -471,7 +469,7 @@
             border-top-color: var(--accent-violet);
             animation: spin 1s ease-in-out infinite;
         }
-
+        
         .spinner-mini {
             display: inline-block;
             width: 12px;
@@ -483,8 +481,8 @@
             margin-left: 8px;
             vertical-align: middle;
         }
-
         /* Slicer Screen Styles */
+        
         .slicer-text-panel p {
             padding: 12px;
             border-radius: var(--radius-sm);
@@ -492,24 +490,24 @@
             border: 1px solid transparent;
             transition: all 0.2s ease;
         }
-
+        
         .slicer-text-panel p.narrative-style {
             color: var(--text-muted);
             font-style: italic;
         }
-
+        
         .slicer-text-panel p.dialogue-style {
             color: var(--text-main);
             font-weight: 500;
             background: rgba(20, 184, 166, 0.015);
             border-left: 2px solid rgba(20, 184, 166, 0.3);
         }
-
+        
         .slicer-text-panel p:hover {
             background: rgba(255, 255, 255, 0.02);
             border-color: rgba(255, 255, 255, 0.05);
         }
-
+        
         .slicer-text-panel.split-active p.can-split:hover {
             border-top: 2px dashed var(--accent-rose) !important;
             cursor: cell;
@@ -517,13 +515,13 @@
             padding-top: 8px !important;
             margin-top: 8px !important;
         }
-
+        
         .highlighted-scene-text {
             background: rgba(20, 184, 166, 0.06) !important;
             border-left: 3px solid var(--accent-teal) !important;
             padding-left: 16px !important;
         }
-
+        
         .slicer-scene-card {
             border: 1px solid var(--border-color);
             background: rgba(17, 24, 39, 0.4);
@@ -535,13 +533,14 @@
             transition: all 0.2s ease;
             cursor: pointer;
         }
-
-        .slicer-scene-card:hover, .slicer-scene-card.card-highlighted-glow {
+        
+        .slicer-scene-card:hover,
+        .slicer-scene-card.card-highlighted-glow {
             border-color: var(--accent-teal);
             box-shadow: 0 0 15px rgba(20, 184, 166, 0.15);
             background: rgba(31, 41, 55, 0.6);
         }
-
+        
         .btn-slicer-card {
             padding: 8px 12px;
             font-size: 12px;
@@ -553,12 +552,12 @@
             justify-content: center;
             transition: var(--transition);
         }
-
+        
         .btn-slicer-card:hover {
             transform: translateY(-1px);
         }
-
         /* Script Editor Screen Styles */
+        
         .editor-line-card {
             border: 1px solid var(--border-color);
             background: rgba(17, 24, 39, 0.4);
@@ -570,64 +569,64 @@
             cursor: pointer;
             transition: all 0.2s ease;
         }
-
+        
         .editor-line-card:hover {
             border-color: rgba(139, 92, 246, 0.4);
             background: rgba(31, 41, 55, 0.6);
         }
-
+        
         .editor-line-card.selected-line-active {
             border-color: var(--accent-violet) !important;
             background: rgba(139, 92, 246, 0.08) !important;
             box-shadow: 0 0 15px rgba(139, 92, 246, 0.15);
         }
-
+        
         .editor-line-card.low-confidence-warning {
             border-color: var(--accent-amber) !important;
             box-shadow: 0 0 12px var(--accent-amber-glow) !important;
             background: rgba(245, 158, 11, 0.04) !important;
         }
-
+        
         .editor-line-card.low-confidence-critical {
             border-color: var(--accent-rose) !important;
             box-shadow: 0 0 12px var(--accent-rose-glow) !important;
             background: rgba(244, 63, 94, 0.04) !important;
         }
-
+        
         .metrics-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
             gap: 20px;
         }
-
+        
         .card-label {
             font-size: 11px;
             text-transform: uppercase;
             letter-spacing: 1px;
             color: var(--text-muted);
         }
-
+        
         .card-val {
             font-size: 28px;
             font-weight: 700;
             margin-top: 8px;
             color: var(--text-main);
         }
-
+        
         .card-sub {
             font-size: 11px;
             color: var(--text-dark);
             margin-top: 4px;
         }
-
         /* Table */
+        
         table {
             width: 100%;
             border-collapse: collapse;
             font-size: 14px;
             text-align: left;
         }
-
+        
         th {
             padding: 12px 16px;
             color: var(--text-muted);
@@ -636,12 +635,12 @@
             text-transform: uppercase;
             border-bottom: 1px solid var(--border-color);
         }
-
+        
         td {
             padding: 12px 16px;
             border-bottom: 1px solid var(--border-color);
         }
-
+        
         .console-container {
             flex-grow: 1;
             background: #030712;
@@ -654,58 +653,75 @@
             overflow-y: auto;
             line-height: 1.5;
             white-space: pre-wrap;
-            box-shadow: inset 0 2px 10px rgba(0,0,0,0.8);
+            box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.8);
         }
-
+        
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
         }
-
+        
         @keyframes float {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-8px); }
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+            50% {
+                transform: translateY(-8px);
+            }
         }
-
         /* Analytics rows */
+        
         .char-share-row {
             margin-bottom: 16px;
         }
-
+        
         .char-share-meta {
             display: flex;
             justify-content: space-between;
             font-size: 13px;
             margin-bottom: 6px;
         }
-
+        
         .char-name {
             font-weight: 600;
         }
-
+        
         .char-percent {
             color: var(--accent-teal);
             font-family: var(--font-mono);
         }
-
+        
         .char-progress-track {
             height: 6px;
-            background: rgba(255,255,255,0.03);
+            background: rgba(255, 255, 255, 0.03);
             border: 1px solid var(--border-color);
             border-radius: 3px;
             overflow: hidden;
         }
-
+        
         .char-progress-bar {
             height: 100%;
             background: linear-gradient(90deg, var(--accent-teal), #0d9488);
             border-radius: 3px;
         }
-
+        
         @keyframes glow-text {
-            0%, 100% { text-shadow: 0 0 5px rgba(20, 184, 166, 0.4); opacity: 0.8; }
-            50% { text-shadow: 0 0 20px rgba(20, 184, 166, 0.9); opacity: 1; }
+            0%,
+            100% {
+                text-shadow: 0 0 5px rgba(20, 184, 166, 0.4);
+                opacity: 0.8;
+            }
+            50% {
+                text-shadow: 0 0 20px rgba(20, 184, 166, 0.9);
+                opacity: 1;
+            }
         }
+        
         .glowing-loading-title {
             animation: glow-text 1.5s infinite ease-in-out;
             color: var(--accent-teal) !important;
@@ -715,23 +731,24 @@
         }
     </style>
 </head>
+
 <body>
 
     <header>
         <div class="logo-container">
             <div class="logo-icon">F</div>
             <div class="logo-text">
-                <h1>Firespeaker Studio</h1>
+                <h1>Volcano Studios</h1>
                 <p>Manuscript Analysis & Navigation Suite</p>
             </div>
         </div>
-        
+
         <!-- Toggle button between Express and Pro Mode -->
         <div style="display: flex; align-items: center; gap: 4px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); padding: 4px; border-radius: 30px; margin-left: 24px; margin-right: auto; flex-shrink: 0;">
             <button id="btnExpressMode" onclick="setUIMode('express')" style="background: var(--accent-teal); border: none; color: white; padding: 6px 14px; border-radius: 20px; font-weight: 600; font-size: 11.5px; cursor: pointer; transition: all 0.2s ease;">Express Mode</button>
             <button id="btnProMode" onclick="setUIMode('pro')" style="background: transparent; border: none; color: var(--text-muted); padding: 6px 14px; border-radius: 20px; font-weight: 600; font-size: 11.5px; cursor: pointer; transition: all 0.2s ease;">Director's Desk</button>
         </div>
-        
+
         <div class="global-tabs">
             <button class="btn-global-tab active" onclick="switchGlobalTab('setup')">Project Setup</button>
             <button class="btn-global-tab" onclick="switchGlobalTab('macro')">Macro-Structure</button>
@@ -777,13 +794,13 @@
                     Manage Cast
                 </button>
             </div>
-            
+
             <!-- Tab selector for sidebar -->
             <div style="display: flex; border-bottom: 1px solid var(--border-color); margin-bottom: 10px; flex-shrink: 0;">
                 <button id="btnSidebarStructure" onclick="switchSidebarTab('structure')" style="flex: 1; background: transparent; border: none; border-bottom: 2px solid var(--accent-violet); color: var(--text-main); font-weight: 600; font-size: 12px; padding: 10px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px; transition: all 0.2s ease;">Structure</button>
                 <button id="btnSidebarCast" onclick="switchSidebarTab('cast')" style="flex: 1; background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--text-muted); font-weight: 600; font-size: 12px; padding: 10px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px; transition: all 0.2s ease;">Cast & Entities</button>
             </div>
-            
+
             <!-- Sidebar Panel: Structure Tree -->
             <div id="sidebarStructurePanel" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
                 <div id="navigationTree" style="flex: 1; overflow-y: auto;">
@@ -805,7 +822,7 @@
 
         <!-- Main Workspace (Panels switch based on tabs) -->
         <div class="workspace-panel">
-            
+
             <!-- Loading screens -->
             <div class="loading-overlay" id="loadingOverlay">
                 <div class="spinner"></div>
@@ -823,12 +840,12 @@
                 <span id="compilationProgressPercentage" style="font-family: var(--font-mono); font-size: 13px; color: var(--accent-teal); font-weight: 600; margin-top: 4px;">0%</span>
             </div>
 
-             <!-- TAB: Express Mode Dashboard (Default) -->
+            <!-- TAB: Express Mode Dashboard (Default) -->
             <div id="tab-express" class="global-tab-pane active" style="padding: 40px; overflow-y: auto;">
                 <div style="max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 32px;">
                     <!-- Setup section if no manuscript is loaded -->
                     <div id="expressIngestSection" class="glass-card" style="padding: 40px; text-align: center;">
-                        <h2 style="color: var(--accent-teal); margin-bottom: 8px;">Welcome to Firespeaker Studio</h2>
+                        <h2 style="color: var(--accent-teal); margin-bottom: 8px;">Welcome to Volcano Studios</h2>
                         <p style="color: var(--text-muted); font-size: 14.5px; margin-bottom: 24px;">Start by pasting your story text or dropping your book file below.</p>
                         <button class="btn-upload" style="background: linear-gradient(135deg, var(--accent-teal), #0d9488); font-size: 16px; padding: 16px 32px; font-weight: 600; margin: 0 auto;" onclick="openUploadModal()">
                             ✨ Ingest Story Text / File
@@ -851,7 +868,7 @@
                         <!-- Right: Express Voice Settings -->
                         <div class="glass-card" style="flex: 1; min-width: 300px; display: flex; flex-direction: column; gap: 24px; padding: 32px; height: fit-content; background: rgba(17, 24, 39, 0.45);">
                             <h3 style="color: var(--accent-teal); margin: 0; font-size: 18px; font-weight: 700; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">Audio Synthesis</h3>
-                            
+
                             <!-- Voice Selection dropdown -->
                             <div style="display: flex; flex-direction: column; gap: 8px;">
                                 <label style="font-size: 13px; color: var(--text-muted); font-weight: 600;">Choose Narrator Voice</label>
@@ -864,7 +881,8 @@
                                         <option value="en-IE-ConnorNeural">Narrator Preset: Connor (Irish Scholar - Connor Neural)</option>
                                         <option value="cloned_voice" id="clonedVoiceOption" style="display: none;">My Cloned Voice (Custom)</option>
                                     </select>
-                                    <button id="btnExpressVoicePreview" onclick="previewExpressVoice()" class="btn-upload" style="background: rgba(20,184,166,0.1); border: 1px solid var(--accent-teal); color: var(--accent-teal); padding: 12px 16px; font-size: 13px; font-weight: 600; flex-shrink: 0; box-shadow: none;" title="Preview Voice (Microsoft Edge Neural TTS)">
+                                    <button id="btnExpressVoicePreview" onclick="previewExpressVoice()" class="btn-upload" style="background: rgba(20,184,166,0.1); border: 1px solid var(--accent-teal); color: var(--accent-teal); padding: 12px 16px; font-size: 13px; font-weight: 600; flex-shrink: 0; box-shadow: none;"
+                                        title="Preview Voice (Microsoft Edge Neural TTS)">
                                         ▶ Preview
                                     </button>
                                 </div>
@@ -891,7 +909,7 @@
             <div id="tab-setup" class="global-tab-pane" style="padding: 40px; overflow-y: auto;">
                 <div class="glass-card" style="max-width: 600px; margin: 0 auto; padding: 40px; display: flex; flex-direction: column; gap: 24px;">
                     <h2 style="color: var(--accent-teal);">Project Setup</h2>
-                    
+
                     <div>
                         <label style="display: block; margin-bottom: 8px; color: var(--text-muted);">1. Select or Ingest Manuscript</label>
                         <div style="display: flex; gap: 12px; align-items: center;">
@@ -917,7 +935,7 @@
                                     <div style="font-size: 12.5px; color: var(--text-muted); margin-top: 4px;">A single voice actor reads the entire book (prose and dialogue).</div>
                                 </div>
                             </label>
-                             <label style="display: none; gap: 12px; align-items: flex-start; cursor: pointer; padding: 16px; border: 1px solid var(--border-color); border-radius: var(--radius-sm);">
+                            <label style="display: none; gap: 12px; align-items: flex-start; cursor: pointer; padding: 16px; border: 1px solid var(--border-color); border-radius: var(--radius-sm);">
                                 <input type="radio" name="productionTier" value="2" style="margin-top: 4px;" onchange="loadBookFromDropdown()">
                                 <div>
                                     <div style="font-weight: 600; font-size: 15px;">Tier 2: Multi-Voice Cast</div>
@@ -959,7 +977,7 @@
             <!-- TAB 2: Macro-Structure Dashboard (Gate 1 & 2) -->
             <div id="tab-macro" class="global-tab-pane" style="padding: 40px; overflow-y: auto;">
                 <div style="display: flex; flex-direction: column; gap: 32px; max-width: 1200px; margin: 0 auto;">
-                    
+
                     <!-- X-Ray Summary Grid -->
                     <div>
                         <h2 style="color: var(--accent-teal); margin-bottom: 20px; font-weight: 700;">Macro-Structure X-Ray</h2>
@@ -998,7 +1016,7 @@
                                 Approve All Splits
                             </button>
                         </div>
-                        
+
                         <div id="macroChapterList" style="display: flex; flex-direction: column; gap: 16px; max-height: 480px; overflow-y: auto; padding-right: 12px;">
                             <div style="text-align: center; padding: 40px; color: var(--text-dark);">Please select or upload a manuscript in Project Setup.</div>
                         </div>
@@ -1021,7 +1039,7 @@
                         </button>
                     </div>
                 </div>
-                
+
                 <div style="display: flex; flex-grow: 1; height: calc(100% - 49px); overflow: hidden;">
                     <!-- Left Side: Continuous Scrolling Text -->
                     <div id="slicerLeftPanel" style="flex: 1; overflow-y: auto; padding: 32px; border-right: 1px solid var(--border-color); background: rgba(3,7,18,0.2);">
@@ -1033,7 +1051,7 @@
                             <div style="text-align: center; padding: 60px; color: var(--text-dark);">Please click a 'Slice' button on any Chapter node in the sidebar tree structure.</div>
                         </div>
                     </div>
-                    
+
                     <!-- Right Side: Interactive Scene Cards -->
                     <div id="slicerRightPanel" style="width: 400px; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 20px; background: rgba(3,7,18,0.15); flex-shrink: 0; border-left: 1px solid var(--border-color);">
                         <h4 style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); font-weight: 700; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">Scene Layout Cards</h4>
@@ -1050,14 +1068,16 @@
                     <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
                         <h3 style="color: var(--accent-violet); font-weight: 700; margin: 0; font-size: 16px;">Studio Script Editor</h3>
                         <span style="font-size: 12px; color: var(--text-muted); font-family: var(--font-mono);" id="editorLinesCountLabel">-- lines loaded</span>
-                        
+
                         <!-- Local PGLite + e5-small Semantic Search -->
                         <div style="display: flex; align-items: center; position: relative; margin-left: 12px;">
-                            <input type="text" id="localSemanticSearchInput" placeholder="🔍 Local Semantic Search (PGLite + e5-small)..." onkeydown="if(event.key==='Enter') executeLocalSemanticSearch()" style="background: var(--bg-deep); border: 1px solid var(--border-color); border-radius: 20px; color: var(--text-main); font-size: 12px; padding: 6px 12px 6px 30px; width: 280px; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='var(--accent-teal)'" onblur="this.style.borderColor='var(--border-color)'">
+                            <input type="text" id="localSemanticSearchInput" placeholder="🔍 Local Semantic Search (PGLite + e5-small)..." onkeydown="if(event.key==='Enter') executeLocalSemanticSearch()" style="background: var(--bg-deep); border: 1px solid var(--border-color); border-radius: 20px; color: var(--text-main); font-size: 12px; padding: 6px 12px 6px 30px; width: 280px; outline: none; transition: border-color 0.2s;"
+                                onfocus="this.style.borderColor='var(--accent-teal)'" onblur="this.style.borderColor='var(--border-color)'">
                             <span style="position: absolute; left: 10px; font-size: 12px; color: var(--text-dark); pointer-events: none;">🔍</span>
                         </div>
 
-                        <button id="btnJumpToWarning" class="btn-upload" style="background: rgba(245, 158, 11, 0.15); border: 1px solid var(--accent-amber); color: var(--accent-amber); font-size: 11px; padding: 4px 10px; border-radius: var(--radius-sm); font-weight: 600; cursor: pointer; display: none; box-shadow: none;" onclick="jumpToNextWarning()">
+                        <button id="btnJumpToWarning" class="btn-upload" style="background: rgba(245, 158, 11, 0.15); border: 1px solid var(--accent-amber); color: var(--accent-amber); font-size: 11px; padding: 4px 10px; border-radius: var(--radius-sm); font-weight: 600; cursor: pointer; display: none; box-shadow: none;"
+                            onclick="jumpToNextWarning()">
                             ⚠️ Jump to Next Warning
                         </button>
                     </div>
@@ -1065,7 +1085,7 @@
                         Generate Audio
                     </button>
                 </div>
-                
+
                 <div style="display: flex; flex-grow: 1; height: calc(100% - 49px); overflow: hidden; position: relative;">
                     <!-- Left: Virtualized Screenplay Feed -->
                     <div id="editorViewport" style="flex: 1; overflow-y: auto; position: relative; background: rgba(3,7,18,0.25);">
@@ -1075,7 +1095,8 @@
                         </div>
 
                         <!-- Floating AI Copilot Bubble -->
-                        <button id="btnFloatingCopilot" onclick="toggleLocalCopilot()" style="position: absolute; bottom: 24px; right: 24px; z-index: 100; background: linear-gradient(135deg, var(--accent-violet), #7c3aed); border: none; color: white; border-radius: 30px; padding: 12px 20px; font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 8px; cursor: pointer; box-shadow: 0 4px 20px rgba(124, 58, 237, 0.4); transition: transform 0.2s ease-in-out;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1.0)'">
+                        <button id="btnFloatingCopilot" onclick="toggleLocalCopilot()" style="position: absolute; bottom: 24px; right: 24px; z-index: 100; background: linear-gradient(135deg, var(--accent-violet), #7c3aed); border: none; color: white; border-radius: 30px; padding: 12px 20px; font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 8px; cursor: pointer; box-shadow: 0 4px 20px rgba(124, 58, 237, 0.4); transition: transform 0.2s ease-in-out;"
+                            onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1.0)'">
                             🤖 AI Copilot (Local)
                         </button>
 
@@ -1101,12 +1122,8 @@
                             <!-- Copilot Messages Area -->
                             <div id="copilotChatMessages" style="flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; font-size: 13px;">
                                 <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 12px; line-height: 1.5; color: var(--text-muted);">
-                                    🤖 <strong>Welcome to your Air-Gapped Copilot!</strong><br><br>
-                                    All AI calculations run locally in your browser cache via WebGPU.<br><br>
-                                    Select any script block in the editor feed, and ask me to:<br>
-                                    • Fix punctuation, typos or formatting<br>
-                                    • Split blocks at dialogue gaps<br>
-                                    • Suggest a Phonetic Pronunciation override
+                                    🤖 <strong>Welcome to your Air-Gapped Copilot!</strong><br><br> All AI calculations run locally in your browser cache via WebGPU.<br><br> Select any script block in the editor feed, and ask me to:<br> • Fix punctuation,
+                                    typos or formatting<br> • Split blocks at dialogue gaps<br> • Suggest a Phonetic Pronunciation override
                                 </div>
                             </div>
                             <!-- Copilot Chat Input -->
@@ -1124,7 +1141,7 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <!-- Right: Director's Drawer (modulator details) -->
                     <div id="directorsDrawer" style="width: 360px; border-left: 1px solid var(--border-color); background: rgba(11,15,25,0.85); backdrop-filter: blur(12px); display: flex; flex-direction: column; gap: 24px; padding: 24px; overflow-y: auto; flex-shrink: 0; z-index: 10;">
                         <div style="text-align: center; color: var(--text-dark); margin: auto; max-width: 250px;">
@@ -1161,7 +1178,7 @@
                             <div class="card-sub" id="valQuoteStyle">Quote style: --</div>
                         </div>
                     </div>
-                    
+
                     <!-- Persistent Speaker Consolidation Card -->
                     <div id="speakerMergeCard" class="glass-card" style="display: none; flex-direction: row; align-items: center; gap: 20px; padding: 24px;">
                         <div id="speakerMergeIcon" style="font-size: 24px; width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color);">⚡</div>
@@ -1184,11 +1201,11 @@
                                 <div id="gaugeNarration" style="width: 0%; height: 100%; background: var(--accent-violet); transition: width 0.5s ease;"></div>
                                 <div id="gaugeDialogue" style="width: 0%; height: 100%; background: var(--accent-teal); transition: width 0.5s ease;"></div>
                             </div>
-                            
+
                             <h3 style="color: var(--accent-teal); font-size: 15px; font-weight: 700; margin: 12px 0 0 0;">Character Spoken Word Share</h3>
                             <div id="charBreakdownList" style="display: flex; flex-direction: column; gap: 12px; max-height: 180px; overflow-y: auto; padding-right: 8px;"></div>
                         </div>
-                        
+
                         <div class="glass-card" style="padding: 24px; display: flex; flex-direction: column; gap: 16px;">
                             <h3 style="color: var(--accent-teal); font-size: 15px; font-weight: 700; margin: 0;">Emotional Sentiment Profile</h3>
                             <div style="display: flex; align-items: flex-end; justify-content: space-around; height: 180px; padding: 10px 0; border-bottom: 1px solid var(--border-color); margin-top: 10px;">
@@ -1217,14 +1234,14 @@
             <!-- TAB 6: Console -->
             <div id="tab-console" class="global-tab-pane" style="padding: 20px;">
                 <div id="developerConsole" class="console-container">
-                    <div style="color: var(--accent-teal);">[Firespeaker OS] Waiting for pipeline execution...</div>
+                    <div style="color: var(--accent-teal);">[Caldera OS] Waiting for pipeline execution...</div>
                 </div>
             </div>
 
             <!-- Placeholder (when no book loaded) -->
             <div class="placeholder-box" id="workspacePlaceholder">
                 <div class="placeholder-icon">✦</div>
-                <h3>Firespeaker Studio Workspace</h3>
+                <h3>Volcano Studios Workspace</h3>
                 <p>Welcome! Select an existing manuscript or upload a new text file to get started. The system will slice structural layers (Parts, Chapters, Scenes), align voice modulations, and generate expressiveness sliders.</p>
             </div>
 
@@ -1237,11 +1254,11 @@
             <div style="font-size: 44px; margin-bottom: 20px; animation: pulse 1.5s infinite ease-in-out;">📦</div>
             <h2 style="color: var(--accent-teal); font-weight: 700; font-size: 20px; margin-bottom: 8px; letter-spacing: 0.5px;">Loading Studio Assets</h2>
             <p style="color: var(--text-muted); font-size: 13.5px; margin-bottom: 24px; line-height: 1.6;">Preparing in-browser hardware-accelerated WebGPU/WASM models (Kokoro, Whisper, e5-small, Phi-3) for 100% air-gapped privacy.</p>
-            
+
             <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden; margin-bottom: 12px;">
                 <div id="assetLoaderBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, var(--accent-teal), var(--accent-violet)); transition: width 0.1s linear;"></div>
             </div>
-            
+
             <div style="display: flex; justify-content: space-between; align-items: center; font-family: var(--font-mono); font-size: 12px;">
                 <span id="assetLoaderStatus" style="color: var(--text-muted); text-align: left;">Downloading Kokoro v1.0 (82M)...</span>
                 <strong id="assetLoaderPercentage" style="color: var(--accent-teal);">0%</strong>
@@ -1259,20 +1276,22 @@
             </div>
             <div style="display: flex; gap: 24px; margin-top: 16px; flex-wrap: wrap;">
                 <!-- Left side: File drag-and-drop -->
-                <div id="dropZone" style="flex: 1; min-width: 280px; border: 2px dashed var(--border-color); border-radius: var(--radius-md); padding: 40px 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(255,255,255,0.01); cursor: pointer; transition: all 0.2s ease;" ondragover="event.preventDefault(); this.style.borderColor='var(--accent-teal)'; this.style.background='rgba(20,184,166,0.05)';" ondragleave="this.style.borderColor='var(--border-color)'; this.style.background='rgba(255,255,255,0.01)';" ondrop="handleDropZone(event)">
+                <div id="dropZone" style="flex: 1; min-width: 280px; border: 2px dashed var(--border-color); border-radius: var(--radius-md); padding: 40px 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(255,255,255,0.01); cursor: pointer; transition: all 0.2s ease;"
+                    ondragover="event.preventDefault(); this.style.borderColor='var(--accent-teal)'; this.style.background='rgba(20,184,166,0.05)';" ondragleave="this.style.borderColor='var(--border-color)'; this.style.background='rgba(255,255,255,0.01)';"
+                    ondrop="handleDropZone(event)">
                     <div style="font-size: 40px; margin-bottom: 12px;">📁</div>
                     <strong style="color: var(--text-main); font-size: 14.5px;">Drag & Drop File Here</strong>
                     <span style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">Supports .txt, .docx files</span>
                     <button class="btn-upload" style="margin-top: 20px; font-size: 12.5px; padding: 8px 16px;" onclick="document.getElementById('directFileInput').click()">Browse Files</button>
                 </div>
-                
+
                 <!-- Separator line -->
                 <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; color: var(--text-dark); font-size: 12px;">
                     <div style="width: 1px; height: 100px; background: var(--border-color); margin-bottom: 8px;"></div>
                     OR
                     <div style="width: 1px; height: 100px; background: var(--border-color); margin-top: 8px;"></div>
                 </div>
-                
+
                 <!-- Right side: Paste Text -->
                 <div style="flex: 1.2; min-width: 300px; display: flex; flex-direction: column; gap: 16px;">
                     <div class="input-group" style="margin-bottom: 0;">
@@ -1324,21 +1343,21 @@
                     <span style="font-size: 12.5px; color: var(--text-main); font-weight: 600;">Stumble Take</span>
                 </label>
             </div>
-            
+
             <!-- Pulse/Recording animation -->
             <div style="display: flex; flex-direction: column; align-items: center; gap: 16px; margin-bottom: 24px;">
                 <button id="btnRecordMic" onclick="toggleMicRecording()" style="width: 70px; height: 70px; border-radius: 50%; border: none; background: var(--accent-rose); color: white; font-size: 28px; cursor: pointer; display: flex; align-items: center; justify-content: center; outline: none; transition: all 0.3s ease; box-shadow: 0 0 15px rgba(244,63,94,0.4);">
                     🎤
                 </button>
                 <div id="micStatusText" style="font-size: 13px; font-weight: 600; color: var(--text-muted);">Click to start recording</div>
-                
+
                 <!-- Progress bar -->
                 <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden; display: none;" id="recordProgressContainer">
                     <div id="recordProgressBar" style="width: 0%; height: 100%; background: var(--accent-violet); transition: width 1s linear;"></div>
                 </div>
                 <div id="recordTimer" style="font-family: var(--font-mono); font-size: 14px; color: var(--accent-violet); font-weight: 600; display: none;">00:00 / 00:30</div>
             </div>
-            
+
             <div style="display: flex; justify-content: center; gap: 12px;">
                 <button class="btn-upload" style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); box-shadow: none;" onclick="closeVoiceClonerModal()">
                     Cancel
@@ -1444,7 +1463,7 @@
         const API_BASE = "";
         let currentHierarchy = null;
         let currentProfile = null;
-        
+
         // Tab Slicer state
         let activeSlicerChapter = null;
         let splitModeSceneId = null;
@@ -1453,7 +1472,7 @@
         let editorLines = [];
         let editorTopPositions = [];
         let selectedEditorLineId = null;
-        
+
         // Background Queue Lookahead feedback status
         let isPipelineRunning = false;
 
@@ -1463,7 +1482,7 @@
             document.getElementById("editorViewport").addEventListener("scroll", renderEditorVirtualList);
             // Window resize handler to adjust virtual list positioning
             window.addEventListener("resize", renderEditorVirtualList);
-            
+
             // Check if models are cached in local storage
             if (!localStorage.getItem("studio_assets_loaded")) {
                 runAssetLoader();
@@ -1485,7 +1504,7 @@
                 const response = await fetch(`${API_BASE}/api/books`);
                 const data = await response.json();
                 const select = document.getElementById("bookSelect");
-                
+
                 select.innerHTML = '<option value="" disabled selected>Select a Manuscript...</option>';
                 data.books.forEach(book => {
                     const option = document.createElement("option");
@@ -1508,49 +1527,54 @@
             const selectedTier = selectedTierEl ? selectedTierEl.value : "1";
 
             showLoading(`Analyzing ${filename}`, "Extracting sections, coreference resolution, and mood metrics...");
-            
+
             try {
                 const response = await fetch(`${API_BASE}/api/analyze`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ filename: filename, tier: parseInt(selectedTier) })
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        filename: filename,
+                        tier: parseInt(selectedTier)
+                    })
                 });
-                
+
                 if (!response.ok) {
                     const err = await response.json();
                     throw new Error(err.error || "Analysis failed");
                 }
-                
+
                 const data = await response.json();
                 currentProfile = data.profile;
                 currentHierarchy = data.hierarchy;
-                
+
                 // Load views
                 renderDashboard(currentProfile);
                 renderTree(currentHierarchy);
                 renderSpeakerVerificationCard(currentHierarchy);
-                
+
                 // Initialize new tabs
                 initMacroDashboard();
-                
+
                 // Default slicer active chapter to first chapter of first part
                 if (currentHierarchy.parts && currentHierarchy.parts.length > 0 && currentHierarchy.parts[0].chapters.length > 0) {
                     activeSlicerChapter = currentHierarchy.parts[0].chapters[0];
                     renderSlicerScreen();
                 }
-                
+
                 // Initialize Script Editor
                 initEditorVirtualList();
-                
+
                 // Adjust views display
                 document.getElementById("workspacePlaceholder").style.display = "none";
                 document.getElementById("btnProcessManuscript").style.display = "inline-flex";
                 document.getElementById("castManagementSection").style.display = "block";
                 document.getElementById("authorVerificationSection").style.display = "block";
-                
+
                 // Go to Setup or Macro Structure default
                 switchGlobalTab('macro');
-                
+
             } catch (err) {
                 alert(`Error during analysis: ${err.message}`);
             } finally {
@@ -1566,44 +1590,47 @@
 
             const selectedTierEl = document.querySelector('input[name="productionTier"]:checked');
             const selectedTier = selectedTierEl ? selectedTierEl.value : "1";
-            
+
             try {
                 const response = await fetch(`${API_BASE}/api/save_hierarchy`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
                     body: JSON.stringify({
                         filename: filename,
                         tier: parseInt(selectedTier),
                         hierarchy: currentHierarchy
                     })
                 });
-                
+
                 if (!response.ok) {
                     const err = await response.json();
                     throw new Error(err.error || "Save failed");
                 }
-                
+
                 const data = await response.json();
                 currentProfile = data.profile;
-                
+
                 // Update dashboards
                 renderDashboard(currentProfile);
                 initMacroDashboard();
                 renderSpeakerVerificationCard(currentHierarchy);
-                
+
                 // Re-render Slicer and Editor
                 renderSlicerScreen();
                 // Retain current position in editor lines
                 const currentScroll = document.getElementById("editorViewport").scrollTop;
                 initEditorVirtualList();
                 document.getElementById("editorViewport").scrollTop = currentScroll;
-                
+
             } catch (err) {
                 console.error("Auto-saving hierarchy failed:", err);
             }
         }
 
         let saveTimeout = null;
+
         function saveHierarchyStateDebounced() {
             if (saveTimeout) clearTimeout(saveTimeout);
             saveTimeout = setTimeout(() => {
@@ -1614,28 +1641,28 @@
         // TAB 2: Macro Structure Dashboard Rendering
         function initMacroDashboard() {
             if (!currentHierarchy || !currentProfile) return;
-            
+
             const meta = currentHierarchy.metadata;
             document.getElementById("macroValWords").textContent = Number(currentProfile.file_metadata.word_count).toLocaleString();
             document.getElementById("macroValChars").textContent = `${Number(currentProfile.file_metadata.char_count).toLocaleString()} chars`;
             document.getElementById("macroValParts").textContent = meta.total_parts || 1;
             document.getElementById("macroValChapters").textContent = meta.total_chapters || 1;
             document.getElementById("macroValScenes").textContent = `${meta.total_scenes || 1} scenes`;
-            
+
             // Progress Calculation
             let totalChaptersCount = 0;
             let verifiedChaptersCount = 0;
-            
+
             const chapterList = document.getElementById("macroChapterList");
             chapterList.innerHTML = "";
-            
+
             currentHierarchy.parts.forEach(part => {
                 part.chapters.forEach(chapter => {
                     totalChaptersCount++;
                     // A chapter is verified if all its lines are verified
                     let isChapterVerified = true;
                     let chapterFirstLineText = "Chapter text block is empty.";
-                    
+
                     let linesInChapter = [];
                     chapter.scenes.forEach(scene => {
                         scene.lines.forEach(l => {
@@ -1645,11 +1672,11 @@
                             }
                         });
                     });
-                    
+
                     if (isChapterVerified && linesInChapter.length > 0) {
                         verifiedChaptersCount++;
                     }
-                    
+
                     // Extract first sentence
                     if (linesInChapter.length > 0) {
                         // Find first sentence of first line containing dialogue or text
@@ -1660,7 +1687,7 @@
                             chapterFirstLineText = sentenceMatch ? sentenceMatch[0] : firstLineText.substring(0, 120) + "...";
                         }
                     }
-                    
+
                     const row = document.createElement("div");
                     row.className = "glass-card";
                     row.style.padding = "16px 24px";
@@ -1669,7 +1696,7 @@
                     row.style.justifyContent = "space-between";
                     row.style.gap = "20px";
                     row.style.borderLeft = isChapterVerified ? "3px solid var(--accent-teal)" : "3px solid rgba(255,255,255,0.03)";
-                    
+
                     const textSec = document.createElement("div");
                     textSec.style.flex = "1";
                     textSec.innerHTML = `
@@ -1681,7 +1708,7 @@
                             "${chapterFirstLineText}"
                         </p>
                     `;
-                    
+
                     const actionSec = document.createElement("div");
                     const isChecked = isChapterVerified ? "checked" : "";
                     actionSec.innerHTML = `
@@ -1690,13 +1717,13 @@
                             <span>Approved</span>
                         </label>
                     `;
-                    
+
                     row.appendChild(textSec);
                     row.appendChild(actionSec);
                     chapterList.appendChild(row);
                 });
             });
-            
+
             document.getElementById("macroValProgress").textContent = `${verifiedChaptersCount} / ${totalChaptersCount}`;
         }
 
@@ -1735,7 +1762,7 @@
         // TAB 3: Scene Slicer Rendering & Interactive Logic
         function loadChapterInSlicer(chapterId) {
             if (!currentHierarchy) return;
-            
+
             let found = null;
             currentHierarchy.parts.forEach(part => {
                 part.chapters.forEach(chap => {
@@ -1744,7 +1771,7 @@
                     }
                 });
             });
-            
+
             if (found) {
                 activeSlicerChapter = found;
                 switchGlobalTab('slicer');
@@ -1757,7 +1784,7 @@
             const btnApprove = document.getElementById("btnApproveChapterScenes");
             const textPanel = document.getElementById("slicerContinuousText");
             const cardsList = document.getElementById("slicerSceneCardsList");
-            
+
             if (!activeSlicerChapter) {
                 label.textContent = "Select a chapter to slice";
                 btnApprove.style.display = "none";
@@ -1765,10 +1792,10 @@
                 cardsList.innerHTML = `<div style="text-align: center; padding: 40px; color: var(--text-dark);">No active chapter.</div>`;
                 return;
             }
-            
+
             label.textContent = activeSlicerChapter.chapter_title;
             btnApprove.style.display = "inline-flex";
-            
+
             // 1. Render Left panel continuous scrolling text
             textPanel.innerHTML = "";
             activeSlicerChapter.scenes.forEach(scene => {
@@ -1777,41 +1804,41 @@
                     p.className = `slicer-line-paragraph ${line.segment_type === "narrative" ? 'narrative-style' : 'dialogue-style'}`;
                     p.dataset.sceneId = scene.scene_id;
                     p.dataset.lineId = line.line_id;
-                    
+
                     if (line.segment_type === "narrative") {
                         p.textContent = line.dialogue || "";
                     } else {
                         p.innerHTML = `<strong>${line.character}:</strong> “${line.dialogue || ""}”`;
                     }
-                    
+
                     // Bind bi-directional hover highlights
                     p.onmouseenter = () => highlightScene(scene.scene_id, true);
                     p.onmouseleave = () => highlightScene(scene.scene_id, false);
                     p.onclick = () => handleSlicerParagraphClick(line.line_id);
-                    
+
                     textPanel.appendChild(p);
                 });
             });
-            
+
             // 2. Render Right panel cards
             cardsList.innerHTML = "";
             activeSlicerChapter.scenes.forEach((scene, index) => {
                 const isLast = index === activeSlicerChapter.scenes.length - 1;
                 const totalWords = scene.metrics.total_words;
                 const dialogueCount = scene.total_dialogue_lines;
-                
+
                 let firstLineText = "Empty scene beat.";
                 if (scene.lines.length > 0) {
                     const firstText = scene.lines[0].dialogue || scene.lines[0].text || "";
                     firstLineText = firstText.substring(0, 70) + (firstText.length > 70 ? "..." : "");
                 }
-                
+
                 const card = document.createElement("div");
                 card.className = "slicer-scene-card";
                 card.id = `slicer_card_${scene.scene_id}`;
                 card.onmouseenter = () => highlightScene(scene.scene_id, true);
                 card.onmouseleave = () => highlightScene(scene.scene_id, false);
-                
+
                 card.innerHTML = `
                     <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
                         <span style="font-weight: 700; color: var(--accent-teal); font-size: 14.5px;">Scene ${scene.scene_number}</span>
@@ -1823,16 +1850,19 @@
                     <p style="font-size: 12.5px; color: var(--text-muted); font-style: italic; line-height: 1.4; max-height: 40px; overflow: hidden;">
                         "${firstLineText}"
                     </p>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 4px;">
                         <button class="btn-slicer-card" style="background: rgba(139, 92, 246, 0.15); border: 1px solid var(--accent-violet); color: var(--accent-violet);" onclick="event.stopPropagation(); enterSplitMode('${scene.scene_id}')">
                             Split Scene
                         </button>
                         <button class="btn-slicer-card" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); color: var(--text-muted);" ${isLast ? 'disabled title="Last scene in chapter"' : ''} onclick="event.stopPropagation(); mergeScenes('${scene.scene_id}')">
                             Merge Next
                         </button>
+                        <button class="btn-slicer-card" style="background: rgba(239, 68, 68, 0.12); border: 1px solid #ef4444; color: #fca5a5;" ${activeSlicerChapter.scenes.length === 1 ? 'disabled title="A chapter must keep one scene"' : ''} onclick="event.stopPropagation(); deleteScene('${scene.scene_id}')">
+                            Delete Scene
+                        </button>
                     </div>
                 `;
-                
+
                 cardsList.appendChild(card);
             });
         }
@@ -1846,17 +1876,20 @@
                     p.classList.remove("highlighted-scene-text");
                 }
             });
-            
+
             const card = document.getElementById(`slicer_card_${sceneId}`);
             if (card) {
                 if (isHighlighted) {
                     card.classList.add("card-highlighted-glow");
-                    
+
                     // Smoothly scroll the left scrolling pane to show paragraphs (without repeating scroll triggers)
                     const leftPanel = document.getElementById("slicerLeftPanel");
                     if (paragraphs.length > 0 && leftPanel.dataset.scrollingTo !== sceneId) {
                         leftPanel.dataset.scrollingTo = sceneId;
-                        paragraphs[0].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        paragraphs[0].scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'nearest'
+                        });
                         setTimeout(() => {
                             delete leftPanel.dataset.scrollingTo;
                         }, 500);
@@ -1872,7 +1905,7 @@
             splitModeSceneId = sceneId;
             document.getElementById("splitInstructionTooltip").style.display = "block";
             document.getElementById("slicerLeftPanel").classList.add("split-active");
-            
+
             // Limit hover dashes to only paragraphs belonging to the active scene
             document.querySelectorAll(`.slicer-line-paragraph[data-scene-id="${sceneId}"]`).forEach(p => {
                 p.classList.add("can-split");
@@ -1882,7 +1915,7 @@
         function cancelSplitMode() {
             document.getElementById("splitInstructionTooltip").style.display = "none";
             document.getElementById("slicerLeftPanel").classList.remove("split-active");
-            
+
             // Clean up split class markers
             document.querySelectorAll(".slicer-line-paragraph").forEach(p => {
                 p.classList.remove("can-split");
@@ -1892,7 +1925,7 @@
 
         async function handleSlicerParagraphClick(lineId) {
             if (!splitModeSceneId) return;
-            
+
             let found = false;
             currentHierarchy.parts.forEach(part => {
                 part.chapters.forEach(chapter => {
@@ -1900,14 +1933,14 @@
                     if (sceneIdx !== -1) {
                         const scene = chapter.scenes[sceneIdx];
                         const lineIdx = scene.lines.findIndex(l => l.line_id === lineId);
-                        
+
                         if (lineIdx > 0) { // Split points must have lines on both sides to avoid empty scenes
                             const linesBefore = scene.lines.slice(0, lineIdx);
                             const linesAfter = scene.lines.slice(lineIdx);
-                            
+
                             const newSceneNum = scene.scene_number + 1;
                             const newSceneId = `${scene.scene_id}_split_${Date.now()}`;
-                            
+
                             // Calculate precise words split metrics
                             let narrationWords = 0;
                             let dialogueWords = 0;
@@ -1922,7 +1955,7 @@
                             });
                             const wordSum = narrationWords + dialogueWords;
                             const quotesSum = linesAfter.filter(l => l.segment_type === "dialogue").length;
-                            
+
                             const newScene = {
                                 "scene_id": newSceneId,
                                 "scene_number": newSceneNum,
@@ -1936,12 +1969,12 @@
                                 },
                                 "lines": linesAfter
                             };
-                            
+
                             // Update lines indices references
                             linesAfter.forEach(l => {
                                 l.scene = newSceneNum;
                             });
-                            
+
                             // Re-calculate original scene metrics precisely
                             let origNarrationWords = 0;
                             let origDialogueWords = 0;
@@ -1954,7 +1987,7 @@
                                     origDialogueWords += wordsCount;
                                 }
                             });
-                            
+
                             // Mutate original scene
                             scene.lines = linesBefore;
                             scene.metrics.total_words = origNarrationWords + origDialogueWords;
@@ -1962,10 +1995,10 @@
                             scene.metrics.dialogue_words = origDialogueWords;
                             scene.total_dialogue_lines = linesBefore.filter(l => l.segment_type === "dialogue").length;
                             scene.characters_present = Array.from(new Set(linesBefore.map(l => l.character).filter(c => c !== "Narrator")));
-                            
+
                             // Insert scene node
                             chapter.scenes.splice(sceneIdx + 1, 0, newScene);
-                            
+
                             // Cascade scene numbers in chapter
                             for (let j = sceneIdx + 1; j < chapter.scenes.length; j++) {
                                 chapter.scenes[j].scene_number = j + 1;
@@ -1973,20 +2006,25 @@
                                     l.scene = j + 1;
                                 });
                             }
-                            
+
                             chapter.total_scenes = chapter.scenes.length;
                             found = true;
                         }
                     }
                 });
             });
-            
+
             cancelSplitMode();
-            
+
             if (found) {
                 showLoading("Slicing Scenes", "Re-assigning linear nodes and updating database manifest...");
                 await saveHierarchyState();
-                sendTelemetryCorrection(lineId, { scene_id: splitModeSceneId }, { action: "scene_split", line_id: lineId });
+                sendTelemetryCorrection(lineId, {
+                    scene_id: splitModeSceneId
+                }, {
+                    action: "scene_split",
+                    line_id: lineId
+                });
                 hideLoading();
             } else {
                 alert("Cannot split at the first block of the scene. Split points must have lines on both sides.");
@@ -2002,21 +2040,21 @@
                     if (sceneIdx !== -1 && sceneIdx < chapter.scenes.length - 1) {
                         const currentScene = chapter.scenes[sceneIdx];
                         const nextScene = chapter.scenes[sceneIdx + 1];
-                        
+
                         // Combine lines
                         currentScene.lines = currentScene.lines.concat(nextScene.lines);
                         currentScene.lines.forEach(l => {
                             l.scene = currentScene.scene_number;
                         });
-                        
+
                         // Combine indicators
                         currentScene.metrics.total_words += nextScene.metrics.total_words;
                         currentScene.total_dialogue_lines += nextScene.total_dialogue_lines;
                         currentScene.characters_present = Array.from(new Set(currentScene.characters_present.concat(nextScene.characters_present)));
-                        
+
                         // Remove second scene
                         chapter.scenes.splice(sceneIdx + 1, 1);
-                        
+
                         // Cascade scene numbers in chapter
                         for (let j = sceneIdx + 1; j < chapter.scenes.length; j++) {
                             chapter.scenes[j].scene_number = j + 1;
@@ -2024,17 +2062,63 @@
                                 l.scene = j + 1;
                             });
                         }
-                        
+
                         chapter.total_scenes = chapter.scenes.length;
                         found = true;
                     }
                 });
             });
-            
+
             if (found) {
                 showLoading("Merging Scene Boundaries", "Regrouping text blocks and saving database cache...");
                 await saveHierarchyState();
-                sendTelemetryCorrection(null, { scene_id: sceneId }, { action: "scene_merge", scene_id: sceneId });
+                sendTelemetryCorrection(null, {
+                    scene_id: sceneId
+                }, {
+                    action: "scene_merge",
+                    scene_id: sceneId
+                });
+                hideLoading();
+            }
+        }
+
+        async function deleteScene(sceneId) {
+            if (!activeSlicerChapter || activeSlicerChapter.scenes.length <= 1) {
+                alert("A chapter must keep at least one scene.");
+                return;
+            }
+
+            const sceneIndex = activeSlicerChapter.scenes.findIndex(scene => scene.scene_id === sceneId);
+            if (sceneIndex === -1) return;
+
+            const sceneNumber = activeSlicerChapter.scenes[sceneIndex].scene_number;
+            if (!confirm(`Delete scene ${sceneNumber} and all of its lines? This cannot be undone.`)) {
+                return;
+            }
+
+            activeSlicerChapter.scenes.splice(sceneIndex, 1);
+            activeSlicerChapter.scenes.forEach((scene, index) => {
+                scene.scene_number = index + 1;
+                scene.lines.forEach((line, lineIndex) => {
+                    line.scene = index + 1;
+                    line.line_number = lineIndex + 1;
+                });
+            });
+            activeSlicerChapter.total_scenes = activeSlicerChapter.scenes.length;
+            currentHierarchy.metadata.total_scenes = currentHierarchy.parts.reduce(
+                (total, part) => total + part.chapters.reduce(
+                    (chapterTotal, chapter) => chapterTotal + chapter.scenes.length, 0), 0);
+
+            showLoading("Deleting Scene", "Updating the review hierarchy and profile...");
+            try {
+                await saveHierarchyState();
+                sendTelemetryCorrection(null, {
+                    scene_id: sceneId
+                }, {
+                    action: "scene_delete",
+                    scene_id: sceneId
+                });
+            } finally {
                 hideLoading();
             }
         }
@@ -2055,7 +2139,7 @@
         // TAB 4: Studio Script Editor (Virtualized Feed and Director's Drawer)
         function initEditorVirtualList() {
             if (!currentHierarchy) return;
-            
+
             // Flatten screenplay line feeds
             editorLines = [];
             currentHierarchy.parts.forEach(part => {
@@ -2069,9 +2153,9 @@
                     });
                 });
             });
-            
+
             document.getElementById("editorLinesCountLabel").textContent = `${editorLines.length.toLocaleString()} lines loaded`;
-            
+
             // Show/hide jump to warning button
             const hasWarnings = editorLines.some(line => {
                 const conf = line.confidence !== undefined ? line.confidence : (line.similarity_score !== undefined ? line.similarity_score : 1.0);
@@ -2081,50 +2165,50 @@
             if (btnWarning) {
                 btnWarning.style.display = hasWarnings ? "inline-block" : "none";
             }
-            
+
             // Calculate absolute offsets
             editorTopPositions = [];
             let cumulativeTop = 20;
-            
+
             editorLines.forEach(line => {
                 editorTopPositions.push(cumulativeTop);
                 // Dynamic estimation logic to calculate height requirements
                 let cardHeight = 72; // minimum height
                 const length = (line.dialogue || "").length;
-                
+
                 if (line.segment_type === "narrative") {
                     cardHeight = 60 + Math.ceil(length / 70) * 18;
                 } else {
                     cardHeight = 72 + Math.ceil(length / 65) * 18;
                 }
-                
+
                 cumulativeTop += cardHeight + 12; // margin space
             });
-            
+
             const stretcher = document.getElementById("editorScrollStretcher");
             if (stretcher) {
                 stretcher.style.height = `${cumulativeTop + 40}px`;
             }
-            
+
             renderEditorVirtualList();
         }
 
         function renderEditorVirtualList() {
             const viewport = document.getElementById("editorViewport");
             const container = document.getElementById("editorVisibleLinesContainer");
-            
+
             if (!viewport || !container || editorLines.length === 0) return;
-            
+
             const scrollTop = viewport.scrollTop;
             const viewportHeight = viewport.clientHeight;
-            
+
             // Linear search visible range indices
             let startIdx = 0;
             while (startIdx < editorLines.length && editorTopPositions[startIdx] + 160 < scrollTop) {
                 startIdx++;
             }
             startIdx = Math.max(0, startIdx - 5); // padding buffer
-            
+
             let endIdx = startIdx;
             while (endIdx < editorLines.length && editorTopPositions[endIdx] < scrollTop + viewportHeight) {
                 endIdx++;
@@ -2135,7 +2219,7 @@
                 const line = editorLines[i];
                 const top = editorTopPositions[i];
                 const isSelected = selectedEditorLineId === line.line_id ? "selected-line-active" : "";
-                
+
                 let contentBlock = '';
                 if (line.segment_type === "narrative") {
                     contentBlock = `
@@ -2150,23 +2234,23 @@
                         </div>
                     `;
                 }
-                
+
                 const verifiedTag = line.verified ? `
                     <span style="font-size:9px; background:rgba(20,184,166,0.15); border:1px solid var(--accent-teal); color:var(--accent-teal); font-weight:700; padding:1px 5px; border-radius:4px;">
                         Verified
                     </span>` : '';
-                
+
                 const lockedTag = line.speaker_locked ? `
                     <span style="font-size:9px; background:rgba(245,158,11,0.15); border:1px solid var(--accent-amber); color:var(--accent-amber); font-weight:700; padding:1px 5px; border-radius:4px;">
                         Locked
                     </span>` : '';
-                    
+
                 const isUnknown = (line.character === "char_unknown_fallback" || line.attribution_method === "char_unknown_fallback");
                 const unknownTag = isUnknown ? `
                     <span style="font-size:9px; background:rgba(244,63,94,0.15); border:1px solid var(--accent-rose); color:var(--accent-rose); font-weight:700; padding:1px 5px; border-radius:4px;">
                         ⚠️ Unknown
                     </span>` : '';
- 
+
                 const confidence = line.confidence !== undefined ? line.confidence : (line.similarity_score !== undefined ? line.similarity_score : 1.0);
                 let confidenceClass = "";
                 let confidenceTag = "";
@@ -2185,18 +2269,18 @@
                             </span>`;
                     }
                 }
- 
+
                 const splitBtn = `
                     <button onclick="event.stopPropagation(); splitBlockPrompt('${line.line_id}')" style="background:transparent; border:1px solid var(--border-color); color:var(--text-muted); font-size:9px; padding:1px 5px; border-radius:4px; font-weight:700; cursor:pointer;" title="Split Block">
                         ✂ Split
                     </button>
                 `;
- 
+
                 const pitchVal = (line.performance && line.performance.pitch_modifier) ? line.performance.pitch_modifier : 1.0;
                 const speedVal = (line.performance && line.performance.speed_modifier) ? line.performance.speed_modifier : 1.0;
-                
+
                 const label = line.segment_type === "narrative" ? "Narrator (Prose)" : line.character;
-                
+
                 html += `
                     <div class="editor-line-card ${isSelected} ${confidenceClass}" style="position: absolute; top: ${top}px; left: 24px; right: 24px;" onclick="handleLineCardClick(event, '${line.line_id}')" ondblclick="startEditingText(event, '${line.line_id}')">
                         <div style="display: flex; justify-content: space-between; align-items: center; pointer-events: none;">
@@ -2216,7 +2300,7 @@
                     </div>
                 `;
             }
-            
+
             container.innerHTML = html;
         }
 
@@ -2224,13 +2308,13 @@
         function selectEditorLine(lineId) {
             selectedEditorLineId = lineId;
             renderEditorVirtualList();
-            
+
             const line = editorLines.find(l => l.line_id === lineId);
             if (!line) return;
-            
+
             const drawer = document.getElementById("directorsDrawer");
             if (!drawer) return;
-            
+
             if (!line.performance) {
                 line.performance = {
                     pitch_modifier: 1.0,
@@ -2238,11 +2322,11 @@
                     delivery_style: "neutral_narrative"
                 };
             }
-            
+
             const pitchVal = line.performance.pitch_modifier || 1.0;
             const speedVal = line.performance.speed_modifier || 1.0;
             const styleVal = line.performance.delivery_style || "neutral_narrative";
-            
+
             // Generate options for the characters dropdown
             let characterOptions = "";
             if (currentHierarchy && currentHierarchy.metadata && currentHierarchy.metadata.global_characters) {
@@ -2258,7 +2342,7 @@
                 const selected = line.character === "Narrator" ? "selected" : "";
                 characterOptions += `<option value="Narrator" ${selected}>Narrator</option>`;
             }
-            
+
             drawer.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
                     <h4 style="color: var(--accent-violet); font-size: 15px; font-weight: 700; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">Director's Drawer</h4>
@@ -2334,7 +2418,7 @@
         function closeDirectorsDrawer() {
             selectedEditorLineId = null;
             renderEditorVirtualList();
-            
+
             const drawer = document.getElementById("directorsDrawer");
             if (drawer) {
                 drawer.innerHTML = `
@@ -2351,7 +2435,7 @@
             if (!selectedEditorLineId) return;
             const line = editorLines.find(l => l.line_id === selectedEditorLineId);
             if (!line) return;
-            
+
             const parsedVal = parseFloat(val);
             if (type === 'pitch') {
                 line.performance.pitch_modifier = parsedVal;
@@ -2360,7 +2444,7 @@
                 line.performance.speed_modifier = parsedVal;
                 document.getElementById("drawerSpeedVal").textContent = `${parsedVal.toFixed(2)}x`;
             }
-            
+
             // Instantly mutate state manager and update the screen view
             renderEditorVirtualList();
             saveHierarchyStateDebounced();
@@ -2369,17 +2453,17 @@
         async function toggleDrawerLineVerification(lineId) {
             const line = editorLines.find(l => l.line_id === lineId);
             if (!line) return;
-            
+
             const newStatus = !line.verified;
             line.verified = newStatus;
             line.speaker_locked = newStatus;
-            
+
             showLoading("Updating Verification", "Saving line state and locking speaker settings...");
-            
+
             // Relational feedback database updates handled inside saveHierarchyState
             await saveHierarchyState();
             hideLoading();
-            
+
             // Re-render drawer content
             selectEditorLine(lineId);
         }
@@ -2387,7 +2471,7 @@
         // Shared Dashboard summary details
         function renderDashboard(profile) {
             if (!profile) return;
-            
+
             document.getElementById("valDuration").textContent = `${profile.file_metadata.estimated_spoken_duration_min}m`;
             document.getElementById("valTier").textContent = profile.file_metadata.processing_tier;
             document.getElementById("valWords").textContent = Number(profile.file_metadata.word_count).toLocaleString();
@@ -2395,24 +2479,24 @@
             document.getElementById("valChapters").textContent = `${profile.structure_metadata.total_chapters} Chapters`;
             document.getElementById("valParagraphs").textContent = `${profile.structure_metadata.total_paragraphs} paragraphs`;
             document.getElementById("valLines").textContent = profile.structure_metadata.total_dialogue_lines_extracted;
-            
+
             const quoteStyle = profile.file_metadata.quote_style_detected || profile.structure_metadata.quote_style_detected || "double";
             const pov = profile.file_metadata.narration_pov || "Third-Person";
             document.getElementById("valQuoteStyle").textContent = `Quotes: ${quoteStyle} | POV: ${pov}`;
-            
+
             const narrPercent = profile.structure_metadata.narration_word_ratio_percent;
             const dialPercent = profile.structure_metadata.dialogue_word_ratio_percent;
-            
+
             document.getElementById("gaugeNarration").style.width = `${narrPercent}%`;
             document.getElementById("gaugeDialogue").style.width = `${dialPercent}%`;
             document.getElementById("dialogueRatioLabel").textContent = `${narrPercent}% / ${dialPercent}%`;
-            
+
             const breakdownList = document.getElementById("charBreakdownList");
             breakdownList.innerHTML = "";
-            
+
             const characters = Object.entries(profile.character_dialogue_breakdown || {});
             characters.sort((a, b) => b[1].spoken_words - a[1].spoken_words);
-            
+
             characters.forEach(([name, metrics]) => {
                 const row = document.createElement("div");
                 row.className = "char-share-row";
@@ -2427,7 +2511,7 @@
                 `;
                 breakdownList.appendChild(row);
             });
-            
+
             const emo = profile.emotional_breakdown || {};
             document.getElementById("barJoy").style.height = `${emo.Joy || 0}%`;
             document.getElementById("barSadness").style.height = `${emo.Sadness || 0}%`;
@@ -2460,15 +2544,15 @@
                 treeContainer.appendChild(partDiv);
 
                 const partChildrenContainer = document.getElementById(partChildrenId);
-                
+
                 part.chapters.forEach((chapter, cIdx) => {
                     const chapChildrenId = `chapChild_${pIdx}_${cIdx}`;
                     const chapDiv = document.createElement("div");
                     chapDiv.className = "tree-node";
-                    
+
                     // Lookahead Feedback: display spinner next to chapter title if compilation pipeline is running
                     const queueSpinner = isPipelineRunning ? `<span class="spinner-mini" title="Chapter currently processing in backend queue"></span>` : '';
-                    
+
                     chapDiv.innerHTML = `
                         <div class="tree-header" onclick="toggleTreeNode(this, '${chapChildrenId}')" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
                             <div style="display: flex; align-items: center; gap: 8px;">
@@ -2483,7 +2567,7 @@
                     partChildrenContainer.appendChild(chapDiv);
 
                     const chapChildrenContainer = document.getElementById(chapChildrenId);
-                    
+
                     chapter.scenes.forEach(scene => {
                         const leafDiv = document.createElement("div");
                         leafDiv.className = "scene-leaf";
@@ -2516,10 +2600,10 @@
             const title = document.getElementById("speakerMergeTitle");
             const desc = document.getElementById("speakerMergeDesc");
             const actions = document.getElementById("speakerMergeActions");
-            
+
             if (!card) return;
             const decisions = (hierarchy && hierarchy.metadata && hierarchy.metadata.merge_decisions) || [];
-            
+
             if (decisions.length === 0) {
                 card.style.display = "flex";
                 card.style.background = "rgba(20, 184, 166, 0.02)";
@@ -2536,7 +2620,7 @@
                 `;
                 return;
             }
-            
+
             const pending = decisions.find(d => d.status === "pending");
             if (pending) {
                 card.style.display = "flex";
@@ -2552,7 +2636,7 @@
                 `;
                 return;
             }
-            
+
             const first = decisions[0];
             card.style.display = "flex";
             if (first.status === "confirmed") {
@@ -2582,16 +2666,18 @@
             const select = document.getElementById("bookSelect");
             const filename = select.value;
             if (!filename) return;
-            
+
             const selectedTierEl = document.querySelector('input[name="productionTier"]:checked');
             const selectedTier = selectedTierEl ? selectedTierEl.value : "1";
-            
+
             showLoading("Verifying Speaker Roster", "Updating database relationships and rebuilding indices...");
-            
+
             try {
                 const response = await fetch(`${API_BASE}/api/confirm_merge`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
                     body: JSON.stringify({
                         filename: filename,
                         tier: parseInt(selectedTier),
@@ -2600,27 +2686,32 @@
                         is_confirmed: isConfirmed
                     })
                 });
-                
+
                 if (!response.ok) {
                     const err = await response.json();
                     throw new Error(err.error || "Override failed");
                 }
-                
+
                 const data = await response.json();
                 currentProfile = data.profile;
                 currentHierarchy = data.hierarchy;
-                
+
                 if (isConfirmed) {
-                    sendTelemetryCorrection(null, { original_name: originalName }, { canonical_name: canonicalName, action: "cast_merge" });
+                    sendTelemetryCorrection(null, {
+                        original_name: originalName
+                    }, {
+                        canonical_name: canonicalName,
+                        action: "cast_merge"
+                    });
                 }
-                
+
                 renderDashboard(currentProfile);
                 renderTree(currentHierarchy);
                 renderSpeakerVerificationCard(currentHierarchy);
                 initMacroDashboard();
                 renderSlicerScreen();
                 initEditorVirtualList();
-                
+
             } catch (err) {
                 alert(`Error merging: ${err.message}`);
             } finally {
@@ -2632,11 +2723,13 @@
             const select = document.getElementById("bookSelect");
             const filename = select.value;
             if (!filename) return;
-            
+
             try {
                 await fetch(`${API_BASE}/api/telemetry/correction`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
                     body: JSON.stringify({
                         filename: filename,
                         correction_type: correctedData.action || "speaker_override",
@@ -2652,12 +2745,12 @@
 
         function jumpToNextWarning() {
             if (editorLines.length === 0) return;
-            
+
             let startIdx = 0;
             if (selectedEditorLineId) {
                 startIdx = editorLines.findIndex(l => l.line_id === selectedEditorLineId);
             }
-            
+
             let targetIdx = -1;
             for (let i = startIdx + 1; i < editorLines.length; i++) {
                 const line = editorLines[i];
@@ -2667,7 +2760,7 @@
                     break;
                 }
             }
-            
+
             if (targetIdx === -1) {
                 for (let i = 0; i <= startIdx; i++) {
                     const line = editorLines[i];
@@ -2678,7 +2771,7 @@
                     }
                 }
             }
-            
+
             if (targetIdx !== -1) {
                 const line = editorLines[targetIdx];
                 selectEditorLine(line.line_id);
@@ -2707,17 +2800,19 @@
             const select = document.getElementById("bookSelect");
             const filename = select.value;
             if (!filename) return;
-            
+
             const selectedTierEl = document.querySelector('input[name="productionTier"]:checked');
             const selectedTier = selectedTierEl ? selectedTierEl.value : "1";
-            
+
             const line = editorLines.find(l => l.line_id === lineId);
             const originalSpeaker = line ? line.character : "unknown";
-            
+
             try {
                 const response = await fetch(`${API_BASE}/api/override_line_speaker`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
                     body: JSON.stringify({
                         filename: filename,
                         tier: parseInt(selectedTier),
@@ -2725,21 +2820,26 @@
                         new_speaker: newSpeaker
                     })
                 });
-                
+
                 if (!response.ok) {
                     const err = await response.json();
                     throw new Error(err.error || "Override speaker failed");
                 }
-                
+
                 const data = await response.json();
                 currentHierarchy = data.hierarchy;
                 currentProfile = data.profile;
-                
-                sendTelemetryCorrection(lineId, { character: originalSpeaker }, { character: newSpeaker, action: "speaker_override" });
-                
+
+                sendTelemetryCorrection(lineId, {
+                    character: originalSpeaker
+                }, {
+                    character: newSpeaker,
+                    action: "speaker_override"
+                });
+
                 initEditorVirtualList();
                 selectEditorLine(lineId);
-                
+
             } catch (err) {
                 alert(`Error overriding speaker: ${err.message}`);
             }
@@ -2754,7 +2854,7 @@
             const globalTabs = document.querySelector(".global-tabs");
             const authorVerificationSection = document.getElementById("authorVerificationSection");
             const castManagementSection = document.getElementById("castManagementSection");
-            
+
             if (mode === 'express') {
                 if (btnExpress) {
                     btnExpress.style.background = "var(--accent-teal)";
@@ -2768,7 +2868,7 @@
                 if (globalTabs) globalTabs.style.display = "none";
                 if (authorVerificationSection) authorVerificationSection.style.display = "none";
                 if (castManagementSection) castManagementSection.style.display = "none";
-                
+
                 switchGlobalTab('express');
             } else {
                 if (btnExpress) {
@@ -2783,7 +2883,7 @@
                 if (globalTabs) globalTabs.style.display = "flex";
                 if (authorVerificationSection) authorVerificationSection.style.display = "block";
                 if (castManagementSection) castManagementSection.style.display = "block";
-                
+
                 switchGlobalTab('editor');
             }
         }
@@ -2810,15 +2910,15 @@
         let micRecordingInterval = null;
         let micRecordSeconds = 0;
         let isMicRecording = false;
-        
+
         const voiceCloneText = "Volcano Works is processing this story under advanced neural guidance. The waves of my own speech are capturing core parameters of timber, rhythm, and tone, preparing to speak as the narrator of this manuscript.";
         const voiceCloneWords = voiceCloneText.split(/\s+/);
-        
+
         function openVoiceClonerModal() {
             document.getElementById("voiceClonerModal").classList.add("active");
             isMicRecording = false;
             micRecordSeconds = 0;
-            
+
             // Populate target words
             const wordsContainer = document.getElementById("targetSpeechWords");
             if (wordsContainer) {
@@ -2827,14 +2927,14 @@
                 }).join(" ");
                 wordsContainer.style.borderColor = "var(--border-color)";
             }
-            
+
             // Reset transcribe view
             const liveContainer = document.getElementById("whisperTranscribeContainer");
             if (liveContainer) liveContainer.style.display = "none";
-            
+
             const liveText = document.getElementById("whisperLiveText");
             if (liveText) liveText.textContent = "Listening...";
-            
+
             const btn = document.getElementById("btnRecordMic");
             if (btn) {
                 btn.style.background = "var(--accent-rose)";
@@ -2847,7 +2947,7 @@
             document.getElementById("recordTimer").style.display = "none";
             document.getElementById("btnSaveClonedVoice").style.display = "none";
         }
-        
+
         function closeVoiceClonerModal() {
             document.getElementById("voiceClonerModal").classList.remove("active");
             if (micRecordingInterval) {
@@ -2855,7 +2955,7 @@
                 micRecordingInterval = null;
             }
         }
-        
+
         function toggleMicRecording() {
             const btn = document.getElementById("btnRecordMic");
             const statusText = document.getElementById("micStatusText");
@@ -2865,11 +2965,11 @@
             const liveContainer = document.getElementById("whisperTranscribeContainer");
             const liveText = document.getElementById("whisperLiveText");
             const targetSpeechBox = document.getElementById("targetSpeechWords");
-            
+
             if (!isMicRecording) {
                 isMicRecording = true;
                 micRecordSeconds = 0;
-                
+
                 // Reset target text styling
                 targetSpeechBox.style.borderColor = "var(--border-color)";
                 voiceCloneWords.forEach((w, idx) => {
@@ -2879,7 +2979,7 @@
                         span.style.fontWeight = "500";
                     }
                 });
-                
+
                 if (btn) {
                     btn.style.background = "#dc2626";
                     btn.style.animation = "pulse 1.5s infinite ease-in-out";
@@ -2890,10 +2990,10 @@
                 progressBar.style.width = "0%";
                 timer.style.display = "block";
                 timer.textContent = "00:00 / 00:30";
-                
+
                 if (liveContainer) liveContainer.style.display = "block";
                 if (liveText) liveText.textContent = "Listening (local Whisper-Web Tiny.en)...";
-                
+
                 if (!document.getElementById("pulseStyle")) {
                     const style = document.createElement("style");
                     style.id = "pulseStyle";
@@ -2906,19 +3006,20 @@
                     `;
                     document.head.appendChild(style);
                 }
-                
+
                 addConsoleLog("INFO", "[Local Whisper] Initializing live transcription stream (Tiny.en)...");
-                
+
                 let simulatedTranscribedText = "";
-                
+
                 micRecordingInterval = setInterval(() => {
                     micRecordSeconds++;
                     const percent = Math.min(100, (micRecordSeconds / 30) * 100);
                     progressBar.style.width = `${percent}%`;
                     timer.textContent = `00:${micRecordSeconds.toString().padStart(2, '0')} / 00:30`;
-                    
-                    const isStumbleMode = document.getElementById("chkWhisperStumble")?.checked;
-                    
+
+                    const stumbleCheckbox = document.getElementById("chkWhisperStumble");
+                    const isStumbleMode = stumbleCheckbox && stumbleCheckbox.checked;
+
                     // Display roughly 1-2 words per second to align with the 31 words over 30s block
                     const wordIdx = micRecordSeconds - 1;
                     if (wordIdx < voiceCloneWords.length) {
@@ -2931,38 +3032,38 @@
                                     span.style.fontWeight = "700";
                                 }
                             }
-                            
+
                             simulatedTranscribedText += "... [pause] ... capturing core parameters ";
                             liveText.innerHTML = `${simulatedTranscribedText} <span style="color:var(--accent-rose); font-weight:700;">[discrepancy detected]</span>`;
-                            
+
                             targetSpeechBox.style.borderColor = "var(--accent-rose)";
                             statusText.innerHTML = `<span style="color: var(--accent-rose); font-weight:700;">⚠️ Oops! Looks like you missed a line. Let's try that again.</span>`;
-                            
+
                             // Stop recording immediately with error
                             clearInterval(micRecordingInterval);
                             micRecordingInterval = null;
                             isMicRecording = false;
-                            
+
                             if (btn) {
                                 btn.style.background = "var(--accent-rose)";
                                 btn.style.animation = "none";
                                 btn.innerHTML = "🎤";
                             }
-                            
+
                             addConsoleLog("WARNING", `[Local Whisper] Text segment mismatch: skipped "waves of my own speech".`);
                             return;
                         }
-                        
+
                         // Normal transcription flow
                         const span = document.getElementById(`cloner-word-${wordIdx}`);
                         if (span) {
                             span.style.color = "var(--accent-teal)";
                         }
-                        
+
                         simulatedTranscribedText += voiceCloneWords[wordIdx] + " ";
                         liveText.textContent = simulatedTranscribedText;
                     }
-                    
+
                     if (micRecordSeconds >= 30) {
                         stopMicRecording(true);
                     }
@@ -2971,22 +3072,22 @@
                 stopMicRecording(false);
             }
         }
-        
+
         function stopMicRecording(completed) {
             clearInterval(micRecordingInterval);
             micRecordingInterval = null;
             isMicRecording = false;
-            
+
             const btn = document.getElementById("btnRecordMic");
             const statusText = document.getElementById("micStatusText");
             const targetSpeechBox = document.getElementById("targetSpeechWords");
-            
+
             if (btn) {
                 btn.style.background = "var(--accent-teal)";
                 btn.style.animation = "none";
                 btn.innerHTML = "✓";
             }
-            
+
             if (completed) {
                 statusText.textContent = "Recording completed and verified by Whisper-Web!";
                 targetSpeechBox.style.borderColor = "var(--accent-teal)";
@@ -2997,7 +3098,7 @@
                 document.getElementById("btnSaveClonedVoice").style.display = "none";
             }
         }
-        
+
         function saveClonedVoice() {
             closeVoiceClonerModal();
             const option = document.getElementById("clonedVoiceOption");
@@ -3012,7 +3113,7 @@
             const container = document.getElementById("expressParsedScriptContainer");
             const wordCountEl = document.getElementById("expressStoryWordCount");
             if (!container || !currentHierarchy) return;
-            
+
             let totalWords = 0;
             let paragraphsHtml = "";
             currentHierarchy.parts.forEach(part => {
@@ -3031,7 +3132,7 @@
                     });
                 });
             });
-            
+
             container.innerHTML = paragraphsHtml || `<p style="color: var(--text-dark);">No script contents loaded.</p>`;
             if (wordCountEl) {
                 wordCountEl.textContent = `${totalWords.toLocaleString()} words`;
@@ -3042,12 +3143,12 @@
             event.stopPropagation();
             const el = document.getElementById(`text-content-${lineId}`);
             if (!el) return;
-            
+
             const line = editorLines.find(l => l.line_id === lineId);
             if (!line) return;
-            
+
             const currentText = line.dialogue || line.text || "";
-            
+
             el.innerHTML = `
                 <textarea id="edit-textarea-${lineId}" style="width: 100%; background: var(--bg-deep); border: 1px solid var(--accent-violet); color: var(--text-main); font-family: inherit; font-size: inherit; padding: 8px; border-radius: var(--radius-sm); resize: vertical; outline: none;" rows="3" onblur="finishEditingText('${lineId}')" onclick="event.stopPropagation()">${currentText}</textarea>
             `;
@@ -3056,11 +3157,11 @@
                 textarea.focus();
             }
         }
-        
+
         function finishEditingText(lineId) {
             const textarea = document.getElementById(`edit-textarea-${lineId}`);
             if (!textarea) return;
-            
+
             const newText = textarea.value.trim();
             const line = editorLines.find(l => l.line_id === lineId);
             if (line) {
@@ -3071,8 +3172,13 @@
                 } else {
                     line.dialogue = newText;
                 }
-                
-                sendTelemetryCorrection(lineId, { text: originalText }, { text: newText, action: "text_edit" });
+
+                sendTelemetryCorrection(lineId, {
+                    text: originalText
+                }, {
+                    text: newText,
+                    action: "text_edit"
+                });
                 saveHierarchyStateDebounced();
             }
             renderEditorVirtualList();
@@ -3093,28 +3199,31 @@
                 alert("Cannot merge the first block.");
                 return;
             }
-            
+
             const currentLine = editorLines[idx];
             const prevLine = editorLines[idx - 1];
-            
+
             if (confirm(`Do you want to merge this block with the previous block?`)) {
                 const originalPrevText = prevLine.dialogue || prevLine.text || "";
                 const originalCurrentText = currentLine.dialogue || currentLine.text || "";
-                
+
                 if (prevLine.segment_type === "narrative") {
                     prevLine.text = (prevLine.text || "") + " " + (currentLine.dialogue || currentLine.text || "");
                     prevLine.dialogue = prevLine.text;
                 } else {
                     prevLine.dialogue = (prevLine.dialogue || "") + " " + (currentLine.dialogue || currentLine.text || "");
                 }
-                
+
                 deleteLineFromHierarchy(lineId);
-                
-                sendTelemetryCorrection(lineId, 
-                    { line1: originalPrevText, line2: originalCurrentText }, 
-                    { action: "blocks_merge", merged_text: prevLine.dialogue || prevLine.text }
-                );
-                
+
+                sendTelemetryCorrection(lineId, {
+                    line1: originalPrevText,
+                    line2: originalCurrentText
+                }, {
+                    action: "blocks_merge",
+                    merged_text: prevLine.dialogue || prevLine.text
+                });
+
                 initEditorVirtualList();
             }
         }
@@ -3140,25 +3249,25 @@
         function splitBlockPrompt(lineId) {
             const line = editorLines.find(l => l.line_id === lineId);
             if (!line) return;
-            
+
             const currentText = line.dialogue || line.text || "";
             const splitText = prompt(`Please copy and paste a unique substring from this block where the second block should start:\n\n"${currentText}"`, "");
             if (!splitText) return;
-            
+
             const idx = currentText.indexOf(splitText);
             if (idx === -1) {
                 alert("Substring not found in this block. Split failed.");
                 return;
             }
-            
+
             const part1 = currentText.substring(0, idx).trim();
             const part2 = currentText.substring(idx).trim();
-            
+
             if (!part1 || !part2) {
                 alert("Cannot split into empty blocks.");
                 return;
             }
-            
+
             splitBlockInHierarchy(lineId, part1, part2);
         }
 
@@ -3170,33 +3279,39 @@
                         const lineIdx = scene.lines.findIndex(l => l.line_id === lineId);
                         if (lineIdx !== -1) {
                             const originalLine = scene.lines[lineIdx];
-                            
+
                             const newLine = JSON.parse(JSON.stringify(originalLine));
                             newLine.line_id = `${originalLine.line_id}_split_${Date.now()}`;
-                            
+
                             if (originalLine.segment_type === "narrative") {
                                 originalLine.text = part1;
                                 originalLine.dialogue = part1;
                             } else {
                                 originalLine.dialogue = part1;
                             }
-                            
+
                             if (newLine.segment_type === "narrative") {
                                 newLine.text = part2;
                                 newLine.dialogue = part2;
                             } else {
                                 newLine.dialogue = part2;
                             }
-                            
+
                             scene.lines.splice(lineIdx + 1, 0, newLine);
                             found = true;
                         }
                     });
                 });
             });
-            
+
             if (found) {
-                sendTelemetryCorrection(lineId, { text: part1 + " " + part2 }, { action: "block_split", text1: part1, text2: part2 });
+                sendTelemetryCorrection(lineId, {
+                    text: part1 + " " + part2
+                }, {
+                    action: "block_split",
+                    text1: part1,
+                    text2: part2
+                });
                 saveHierarchyStateDebounced();
                 initEditorVirtualList();
             }
@@ -3218,7 +3333,7 @@
                 window.open(`${API_BASE}/api/download?filename=${filename}`, "_blank");
             }
         }
-        
+
         function shareWebLink() {
             const link = window.location.href;
             navigator.clipboard.writeText(link).then(() => {
@@ -3233,7 +3348,7 @@
             const btnCast = document.getElementById("btnSidebarCast");
             const panelStructure = document.getElementById("sidebarStructurePanel");
             const panelCast = document.getElementById("sidebarCastPanel");
-            
+
             if (tab === 'structure') {
                 btnStructure.style.borderBottomColor = "var(--accent-violet)";
                 btnStructure.style.color = "var(--text-main)";
@@ -3255,7 +3370,7 @@
         function renderSidebarCastList() {
             const container = document.getElementById("sidebarCastList");
             if (!container) return;
-            
+
             if (!currentHierarchy || !currentHierarchy.metadata || !currentHierarchy.metadata.global_characters) {
                 container.innerHTML = `
                     <div class="placeholder-box" style="padding: 10px; color: var(--text-dark);">
@@ -3263,9 +3378,9 @@
                     </div>`;
                 return;
             }
-            
+
             const characters = currentHierarchy.metadata.global_characters.filter(c => c !== "Narrator");
-            
+
             if (characters.length === 0) {
                 container.innerHTML = `
                     <div style="padding: 12px; color: var(--text-muted); font-size: 13px;">
@@ -3273,7 +3388,7 @@
                     </div>`;
                 return;
             }
-            
+
             let html = "";
             characters.forEach(char => {
                 const otherChars = characters.filter(c => c !== char);
@@ -3281,7 +3396,7 @@
                 otherChars.forEach(oc => {
                     mergeOptions += `<option value="${oc}">${oc}</option>`;
                 });
-                
+
                 html += `
                     <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 8px;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -3298,7 +3413,7 @@
                     </div>
                 `;
             });
-            
+
             container.innerHTML = html;
         }
 
@@ -3309,12 +3424,14 @@
             const selectedTierEl = document.querySelector('input[name="productionTier"]:checked');
             const selectedTier = selectedTierEl ? selectedTierEl.value : "1";
             if (!filename) return;
-            
+
             const checked = checkbox.checked;
             try {
                 const response = await fetch(`${API_BASE}/api/verify_aspect`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
                     body: JSON.stringify({
                         filename: filename,
                         tier: parseInt(selectedTier),
@@ -3322,15 +3439,15 @@
                         verified: checked
                     })
                 });
-                
+
                 if (!response.ok) {
                     const err = await response.json();
                     throw new Error(err.error || "Failed to update aspect verification status");
                 }
-                
+
                 const data = await response.json();
                 currentHierarchy = data.hierarchy;
-                
+
             } catch (err) {
                 alert(`Error verifying aspect: ${err.message}`);
                 checkbox.checked = !checked;
@@ -3354,7 +3471,7 @@
             const tbody = document.getElementById("castManagerTableBody");
             tbody.innerHTML = `<tr><td colspan="6" style="padding: 24px; text-align: center; color: var(--text-muted);">Fetching database voice reference parameters...</td></tr>`;
             document.getElementById("castManagerModal").classList.add("active");
-            
+
             fetch(`${API_BASE}/api/cast`)
                 .then(res => res.json())
                 .then(data => {
@@ -3363,12 +3480,12 @@
                     activeDrawers.forEach(d => {
                         drawerMap[d.name] = d;
                     });
-                    
+
                     const globalChars = currentHierarchy.metadata.global_characters || [];
                     if (!globalChars.includes("Narrator")) {
                         globalChars.unshift("Narrator");
                     }
-                    
+
                     tbody.innerHTML = "";
                     globalChars.forEach(charName => {
                         const profile = drawerMap[charName] || {
@@ -3377,10 +3494,10 @@
                             speed: 1.0,
                             pitch: 0.0
                         };
-                        
+
                         const row = document.createElement("tr");
                         row.style.borderBottom = "1px solid var(--border-color)";
-                        
+
                         const wavOptions = [
                             "data/voice_references/narrator_mono.wav",
                             "data/voice_references/holmes_mono.wav",
@@ -3393,7 +3510,7 @@
                             "en-GB-SoniaNeural",
                             "en-IE-ConnorNeural"
                         ];
-                        
+
                         let wavSelectOptions = "";
                         wavOptions.forEach(opt => {
                             const isSelected = profile.voice_ref_path === opt ? "selected" : "";
@@ -3407,7 +3524,7 @@
                             }
                             wavSelectOptions += `<option value="${opt}" ${isSelected}>${label}</option>`;
                         });
-                        
+
                         row.innerHTML = `
                             <td style="padding: 12px 16px; font-weight: 600; color: var(--text-muted); font-size: 13.5px;">${charName}</td>
                             <td style="padding: 12px 16px;">
@@ -3449,25 +3566,27 @@
             const voiceRef = row.querySelector(".cast-voice-ref").value;
             const speed = parseFloat(row.querySelector(".cast-speed").value);
             const pitch = parseFloat(row.querySelector(".cast-pitch").value);
-            
+
             const filename = document.getElementById("bookSelect").value;
             if (!filename) return;
 
             const selectedTierEl = document.querySelector('input[name="productionTier"]:checked');
             const selectedTier = selectedTierEl ? selectedTierEl.value : "1";
-            
+
             if (!newName) {
                 alert("Character name cannot be blank.");
                 return;
             }
-            
+
             button.disabled = true;
             button.textContent = "Saving...";
-            
+
             try {
                 const response = await fetch(`${API_BASE}/api/update_character`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
                     body: JSON.stringify({
                         filename: filename,
                         tier: parseInt(selectedTier),
@@ -3478,23 +3597,23 @@
                         pitch: pitch
                     })
                 });
-                
+
                 if (!response.ok) {
                     const err = await response.json();
                     throw new Error(err.error || "Save character failed");
                 }
-                
+
                 const data = await response.json();
                 currentProfile = data.profile;
                 currentHierarchy = data.hierarchy;
-                
+
                 renderDashboard(currentProfile);
                 renderTree(currentHierarchy);
                 renderSpeakerVerificationCard(currentHierarchy);
-                
+
                 button.textContent = "Saved";
                 button.style.background = "var(--accent-teal)";
-                
+
                 if (newName !== originalName) {
                     setTimeout(openCastManagerModal, 600);
                 } else {
@@ -3517,14 +3636,14 @@
 
         // Speech synthesis and master compliancy generation pipeline
         let compilationInterval = null;
-        
+
         async function triggerProcessManuscript() {
             const filename = document.getElementById("bookSelect").value;
             if (!filename) return;
 
             const selectedTierEl = document.querySelector('input[name="productionTier"]:checked');
             const selectedTier = selectedTierEl ? selectedTierEl.value : "1";
-            
+
             // First save the current hierarchy JSON back to the server to preserve any edits!
             showLoading("Preserving Script State", "Uploading human verification layout to pipeline master...");
             try {
@@ -3533,14 +3652,14 @@
                 console.error("Preserving hierarchy state failed, compiling anyway...", err);
             }
             hideLoading();
-            
+
             // If in express mode, save the selected narrator voice choice to the database
             if (currentUIMode === 'express') {
                 const expressVoiceVal = document.getElementById("expressVoiceSelect").value;
                 let mappedRef = "data/voice_references/narrator_mono.wav";
                 let speed = 1.0;
                 let pitch = 0.0;
-                
+
                 if (expressVoiceVal === "preset_narrator_1") {
                     mappedRef = "en-GB-RyanNeural";
                     speed = 1.0;
@@ -3558,11 +3677,13 @@
                 } else if (expressVoiceVal.includes("Neural")) {
                     mappedRef = expressVoiceVal;
                 }
-                
+
                 try {
                     await fetch(`${API_BASE}/api/update_character`, {
                         method: "POST",
-                        headers: { "Content-Type": "application/json" },
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
                         body: JSON.stringify({
                             filename: filename,
                             tier: parseInt(selectedTier),
@@ -3578,40 +3699,46 @@
                     console.error("Failed to update express narrator voice:", err);
                 }
             }
-            
+
             const btn = document.getElementById("btnProcessManuscript");
             const icon = document.getElementById("processIcon");
             const text = document.getElementById("processText");
-            
+
             if (btn) btn.disabled = true;
             if (icon) icon.style.animation = "spin 1.2s linear infinite";
             if (text) text.textContent = "Processing...";
-            
+
             try {
                 const userTier = currentUIMode === 'express' ? 'free' : 'pro';
                 const response = await fetch(`${API_BASE}/api/process_manuscript`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ filename: filename, tier: parseInt(selectedTier), user_tier: userTier })
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        filename: filename,
+                        tier: parseInt(selectedTier),
+                        user_tier: userTier
+                    })
                 });
-                
+
                 if (!response.ok) {
                     const err = await response.json();
                     throw new Error(err.error || "Synthesis request failed");
                 }
-                
+
                 // Toggle sidebar indicator
                 isPipelineRunning = true;
                 renderTree(currentHierarchy);
-                
+
                 // Open processing progress dialog
                 document.getElementById("compilationOverlay").classList.add("active");
                 document.getElementById("compilationProgressBar").style.width = "0%";
                 document.getElementById("compilationProgressPercentage").textContent = "0%";
                 document.getElementById("compilationSubtitle").textContent = "Initializing synthesis compiler...";
-                
+
                 compilationInterval = setInterval(pollCompilationStatus, 1000);
-                
+
             } catch (err) {
                 alert(`Pipeline launch error: ${err.message}`);
                 isPipelineRunning = false;
@@ -3626,47 +3753,47 @@
             try {
                 const res = await fetch(`${API_BASE}/api/pipeline_status`);
                 const data = await res.json();
-                
+
                 const percent = data.progress || 0;
                 const step = data.step || "Processing speech synthesis components...";
-                
+
                 document.getElementById("compilationProgressBar").style.width = `${percent}%`;
                 document.getElementById("compilationProgressPercentage").textContent = `${percent}%`;
                 document.getElementById("compilationSubtitle").textContent = step;
-                
+
                 if (data.status === "completed") {
                     clearInterval(compilationInterval);
                     isPipelineRunning = false;
                     renderTree(currentHierarchy);
-                    
+
                     document.getElementById("compilationOverlay").classList.remove("active");
-                    
+
                     const btn = document.getElementById("btnProcessManuscript");
                     const icon = document.getElementById("processIcon");
                     const text = document.getElementById("processText");
                     if (btn) btn.disabled = false;
                     if (icon) icon.style.animation = "none";
                     if (text) text.textContent = "Generate Audio";
-                    
+
                     // Show ACX report compliance results
                     const qc = data.qc_report || {};
                     const metrics = qc.metrics || {};
                     const val = qc.validation || {};
-                    
+
                     const peakVal = parseFloat(metrics.physical_peak_amplitude_dbfs !== undefined ? metrics.physical_peak_amplitude_dbfs : -3.00);
                     const rmsVal = parseFloat(metrics.root_mean_square_rms_dbfs !== undefined ? metrics.root_mean_square_rms_dbfs : -21.50);
                     const noiseFloor = parseFloat(metrics.noise_floor_dbfs !== undefined ? metrics.noise_floor_dbfs : -65.00);
-                    
+
                     document.getElementById("qcPeakVal").textContent = `${peakVal.toFixed(2)} dBFS`;
                     document.getElementById("qcRmsVal").textContent = `${rmsVal.toFixed(2)} dBFS`;
                     document.getElementById("qcNoiseFloorVal").textContent = `${noiseFloor.toFixed(2)} dBFS`;
                     document.getElementById("qcSampleRateVal").textContent = `${Number(metrics.sample_rate_hz || 22050).toLocaleString()} Hz`;
                     document.getElementById("qcBitDepthVal").textContent = `${metrics.bit_depth || 16}-bit / ${metrics.channels === 1 ? 'Mono' : 'Stereo'}`;
-                    
+
                     const peakCheck = document.getElementById("qcPeakCheckVal");
                     peakCheck.textContent = val.peak_check || (peakVal <= -3.0 ? "PASSED" : "FAILED");
                     peakCheck.style.color = (peakCheck.textContent === "PASSED" ? "var(--accent-teal)" : "var(--accent-rose)");
-                    
+
                     const rmsCheck = document.getElementById("qcRmsCheckVal");
                     rmsCheck.textContent = val.rms_check || (rmsVal >= -23.0 && rmsVal <= -18.0 ? "PASSED" : "FAILED");
                     rmsCheck.style.color = (rmsCheck.textContent === "PASSED" ? "var(--accent-teal)" : "var(--accent-rose)");
@@ -3674,23 +3801,23 @@
                     const noiseCheck = document.getElementById("qcNoiseFloorCheckVal");
                     noiseCheck.textContent = val.noise_floor_check || (noiseFloor <= -60.0 ? "PASSED" : "FAILED");
                     noiseCheck.style.color = (noiseCheck.textContent === "PASSED" ? "var(--accent-teal)" : "var(--accent-rose)");
-                    
+
                     document.getElementById("masterQcModal").classList.add("active");
-                    
+
                 } else if (data.status === "failed") {
                     clearInterval(compilationInterval);
                     isPipelineRunning = false;
                     renderTree(currentHierarchy);
-                    
+
                     document.getElementById("compilationOverlay").classList.remove("active");
-                    
+
                     const btn = document.getElementById("btnProcessManuscript");
                     const icon = document.getElementById("processIcon");
                     const text = document.getElementById("processText");
                     if (btn) btn.disabled = false;
                     if (icon) icon.style.animation = "none";
                     if (text) text.textContent = "Generate Audio";
-                    
+
                     alert(`Compilation failed: ${data.error}`);
                 }
             } catch (err) {
@@ -3731,8 +3858,14 @@
             try {
                 const response = await fetch(`${API_BASE}/api/upload`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ filename: filename, text: text, tier: parseInt(selectedTier) })
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        filename: filename,
+                        text: text,
+                        tier: parseInt(selectedTier)
+                    })
                 });
 
                 if (!response.ok) {
@@ -3743,27 +3876,27 @@
                 const data = await response.json();
                 currentProfile = data.profile;
                 currentHierarchy = data.hierarchy;
-                
+
                 renderDashboard(currentProfile);
                 renderTree(currentHierarchy);
                 renderSpeakerVerificationCard(currentHierarchy);
                 initMacroDashboard();
-                
+
                 if (currentHierarchy.parts && currentHierarchy.parts.length > 0 && currentHierarchy.parts[0].chapters.length > 0) {
                     activeSlicerChapter = currentHierarchy.parts[0].chapters[0];
                     renderSlicerScreen();
                 }
-                
+
                 initEditorVirtualList();
-                
+
                 await fetchBooks();
                 document.getElementById("bookSelect").value = filename.endsWith(".txt") ? filename : `${filename}.txt`;
-                
+
                 document.getElementById("workspacePlaceholder").style.display = "none";
                 document.getElementById("btnProcessManuscript").style.display = "inline-flex";
                 document.getElementById("castManagementSection").style.display = "block";
                 document.getElementById("authorVerificationSection").style.display = "block";
-                
+
                 if (currentHierarchy) {
                     const ing = document.getElementById("expressIngestSection");
                     const dsh = document.getElementById("expressDashboardSection");
@@ -3771,7 +3904,7 @@
                     if (dsh) dsh.style.display = "flex";
                     renderExpressDashboardScript();
                 }
-                
+
                 if (currentUIMode === 'express') {
                     switchGlobalTab('express');
                 } else {
@@ -3803,8 +3936,14 @@
                 try {
                     const response = await fetch(`${API_BASE}/api/upload`, {
                         method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ filename: filename, text: contents, tier: parseInt(selectedTier) })
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({
+                            filename: filename,
+                            text: contents,
+                            tier: parseInt(selectedTier)
+                        })
                     });
 
                     if (!response.ok) {
@@ -3815,30 +3954,30 @@
                     const data = await response.json();
                     currentProfile = data.profile;
                     currentHierarchy = data.hierarchy;
-                    
+
                     renderDashboard(currentProfile);
                     renderTree(currentHierarchy);
                     renderSpeakerVerificationCard(currentHierarchy);
                     initMacroDashboard();
-                    
+
                     if (currentHierarchy.parts && currentHierarchy.parts.length > 0 && currentHierarchy.parts[0].chapters.length > 0) {
                         activeSlicerChapter = currentHierarchy.parts[0].chapters[0];
                         renderSlicerScreen();
                     }
-                    
+
                     initEditorVirtualList();
-                    
+
                     await fetchBooks();
                     const select = document.getElementById("bookSelect");
                     if (select) {
                         select.value = filename.endsWith(".txt") ? filename : `${filename}.txt`;
                     }
-                    
+
                     document.getElementById("workspacePlaceholder").style.display = "none";
                     document.getElementById("btnProcessManuscript").style.display = "inline-flex";
                     document.getElementById("castManagementSection").style.display = "block";
                     document.getElementById("authorVerificationSection").style.display = "block";
-                    
+
                     if (currentHierarchy) {
                         const ing = document.getElementById("expressIngestSection");
                         const dsh = document.getElementById("expressDashboardSection");
@@ -3846,7 +3985,7 @@
                         if (dsh) dsh.style.display = "flex";
                         renderExpressDashboardScript();
                     }
-                    
+
                     if (currentUIMode === 'express') {
                         switchGlobalTab('express');
                     } else {
@@ -3888,12 +4027,12 @@
         function switchGlobalTab(tabId) {
             document.querySelectorAll('.global-tab-pane').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.btn-global-tab').forEach(el => el.classList.remove('active'));
-            
+
             const targetPane = document.getElementById('tab-' + tabId);
             if (targetPane) {
                 targetPane.classList.add('active');
             }
-            
+
             const btns = document.querySelectorAll('.btn-global-tab');
             btns.forEach(btn => {
                 const onc = btn.getAttribute('onclick');
@@ -3901,7 +4040,7 @@
                     btn.classList.add('active');
                 }
             });
-            
+
             // Re-render elements for specific tab changes
             if (tabId === 'editor') {
                 setTimeout(renderEditorVirtualList, 50);
@@ -3913,7 +4052,7 @@
         // Log Console Polling
         let consoleInterval = null;
         let lastLogCount = 0;
-        
+
         function fetchLogs() {
             fetch("/api/logs")
                 .then(res => res.json())
@@ -3930,7 +4069,7 @@
                     }
                 });
         }
-        
+
         function startConsolePolling() {
             if (!consoleInterval) {
                 consoleInterval = setInterval(fetchLogs, 1000);
@@ -3941,7 +4080,7 @@
         // ----------------------------------------------------
         // WebGPU / WASM Local In-Browser Model helpers
         // ----------------------------------------------------
-        
+
         function addConsoleLog(level, message) {
             const consoleDiv = document.getElementById("developerConsole");
             if (consoleDiv) {
@@ -3951,7 +4090,7 @@
                 p.style.padding = "2px 0";
                 p.style.fontSize = "12px";
                 p.style.fontFamily = "var(--font-mono)";
-                
+
                 if (level === "ERROR") {
                     p.style.color = "var(--accent-rose)";
                 } else if (level === "WARNING") {
@@ -3959,7 +4098,7 @@
                 } else {
                     p.style.color = "var(--accent-teal)";
                 }
-                
+
                 p.textContent = `[${now}] [${level}] ${message}`;
                 consoleDiv.appendChild(p);
                 consoleDiv.scrollTop = consoleDiv.scrollHeight;
@@ -3976,23 +4115,40 @@
             const bar = document.getElementById("assetLoaderBar");
             const statusText = document.getElementById("assetLoaderStatus");
             const percentText = document.getElementById("assetLoaderPercentage");
-            
+
             if (!overlay || !bar) return;
-            
+
             overlay.style.display = "flex";
             addConsoleLog("INFO", "[Local WebGPU] Initializing pipeline asset downloading...");
-            
-            const steps = [
-                { progress: 15, label: "Checking WebGPU hardware acceleration...", delay: 600 },
-                { progress: 35, label: "Downloading Kokoro v1.0 weights (82MB)...", delay: 1000 },
-                { progress: 55, label: "Caching Whisper-Web (Tiny.en) ONNX weights...", delay: 800 },
-                { progress: 75, label: "Initializing local PGLite WASM database...", delay: 600 },
-                { progress: 90, label: "Loading e5-small semantic embedding model...", delay: 500 },
-                { progress: 100, label: "Warming up WebGPU pipelines. Ready!", delay: 400 }
-            ];
-            
+
+            const steps = [{
+                progress: 15,
+                label: "Checking WebGPU hardware acceleration...",
+                delay: 600
+            }, {
+                progress: 35,
+                label: "Downloading Kokoro v1.0 weights (82MB)...",
+                delay: 1000
+            }, {
+                progress: 55,
+                label: "Caching Whisper-Web (Tiny.en) ONNX weights...",
+                delay: 800
+            }, {
+                progress: 75,
+                label: "Initializing local PGLite WASM database...",
+                delay: 600
+            }, {
+                progress: 90,
+                label: "Loading e5-small semantic embedding model...",
+                delay: 500
+            }, {
+                progress: 100,
+                label: "Warming up WebGPU pipelines. Ready!",
+                delay: 400
+            }];
+
             let currentStepIdx = 0;
-            
+
             function nextStep() {
                 if (currentStepIdx >= steps.length) {
                     setTimeout(() => {
@@ -4002,23 +4158,23 @@
                     }, 500);
                     return;
                 }
-                
+
                 const step = steps[currentStepIdx];
                 statusText.textContent = step.label;
-                
+
                 const startProgress = currentStepIdx === 0 ? 0 : steps[currentStepIdx - 1].progress;
                 const endProgress = step.progress;
                 const duration = step.delay;
                 const startTime = performance.now();
-                
+
                 function updateProgress(now) {
                     const elapsed = now - startTime;
                     const pct = Math.min(1, elapsed / duration);
                     const currentProgress = Math.round(startProgress + pct * (endProgress - startProgress));
-                    
+
                     bar.style.width = `${currentProgress}%`;
                     percentText.textContent = `${currentProgress}%`;
-                    
+
                     if (pct < 1) {
                         requestAnimationFrame(updateProgress);
                     } else {
@@ -4026,10 +4182,10 @@
                         nextStep();
                     }
                 }
-                
+
                 requestAnimationFrame(updateProgress);
             }
-            
+
             nextStep();
         }
 
@@ -4037,43 +4193,43 @@
             const row = button.closest("tr");
             const voiceSelect = row.querySelector(".cast-voice-ref");
             const charName = row.cells[0].textContent;
-            
+
             const originalText = button.innerHTML;
-            
+
             if (currentPreviewAudio) {
                 try {
                     currentPreviewAudio.pause();
-                } catch(e) {}
+                } catch (e) {}
                 currentPreviewAudio = null;
             }
-            
+
             button.disabled = true;
             button.innerHTML = "⏳ Synthesizing...";
             button.style.borderColor = "var(--accent-amber)";
             button.style.color = "var(--accent-amber)";
-            
+
             const voiceVal = voiceSelect.value;
             const textToSpeak = `Hello, this is a 5-second voice preview for character ${charName} using the neural voice cast.`;
-            
+
             const speedInput = row.querySelector(".cast-speed");
             const pitchInput = row.querySelector(".cast-pitch");
             const speed = speedInput ? speedInput.value : "1.0";
             const pitch = pitchInput ? pitchInput.value : "1.0";
-            
+
             addConsoleLog("INFO", `[Audio Preview] Requesting backend voice synthesis preview...`);
             addConsoleLog("INFO", `[Audio Preview] Voice: "${voiceVal}" | Speed: ${speed} | Pitch: ${pitch}`);
-            
+
             const url = `${API_BASE}/api/preview_voice?voice=${encodeURIComponent(voiceVal)}&text=${encodeURIComponent(textToSpeak)}&speed=${encodeURIComponent(speed)}&pitch=${encodeURIComponent(pitch)}`;
-            
+
             const audio = new Audio(url);
             currentPreviewAudio = audio;
-            
+
             audio.onplay = () => {
                 button.innerHTML = "🔊 Playing Preview";
                 button.style.borderColor = "var(--accent-teal)";
                 button.style.color = "var(--accent-teal)";
             };
-            
+
             audio.onended = () => {
                 button.disabled = false;
                 button.innerHTML = originalText;
@@ -4082,7 +4238,7 @@
                 addConsoleLog("INFO", `[Audio Preview] Synthesis completed. Finished playing preview.`);
                 currentPreviewAudio = null;
             };
-            
+
             audio.onerror = (e) => {
                 button.disabled = false;
                 button.innerHTML = originalText;
@@ -4091,7 +4247,7 @@
                 addConsoleLog("ERROR", `[Audio Preview] Failed to load/play preview audio from backend.`);
                 currentPreviewAudio = null;
             };
-            
+
             audio.play().catch(err => {
                 console.error("Audio playback error:", err);
                 button.disabled = false;
@@ -4108,14 +4264,14 @@
             if (!input) return;
             const query = input.value.trim();
             if (!query) return;
-            
+
             addConsoleLog("INFO", `[Local PGLite] Querying local vector store index for: "${query}"`);
             addConsoleLog("INFO", `[Local e5-small] Generated 384-dim normalized embedding in 5ms`);
-            
+
             const keywords = query.toLowerCase().split(/\s+/).filter(Boolean);
             let bestIdx = -1;
             let maxScore = 0;
-            
+
             editorLines.forEach((line, idx) => {
                 const text = (line.dialogue || line.text || "").toLowerCase();
                 let score = 0;
@@ -4129,13 +4285,13 @@
                     bestIdx = idx;
                 }
             });
-            
+
             if (bestIdx !== -1) {
                 const matchLine = editorLines[bestIdx];
                 const similarity = 0.70 + (maxScore / (keywords.length + 1)) * 0.28;
-                
+
                 addConsoleLog("INFO", `[Local PGLite] Found closest match in database (Score: ${similarity.toFixed(2)}), scrolling to line...`);
-                
+
                 const viewport = document.getElementById("editorViewport");
                 if (viewport) {
                     viewport.scrollTop = Math.max(0, editorTopPositions[bestIdx] - 100);
@@ -4157,17 +4313,17 @@
                 }
             }
         }
-        
+
         function appendCopilotMessage(sender, text) {
             const container = document.getElementById("copilotChatMessages");
             if (!container) return;
-            
+
             const msg = document.createElement("div");
             msg.style.marginBottom = "10px";
             msg.style.padding = "8px 12px";
             msg.style.borderRadius = "var(--radius-sm)";
             msg.style.lineHeight = "1.5";
-            
+
             if (sender === "user") {
                 msg.style.background = "rgba(139, 92, 246, 0.1)";
                 msg.style.border = "1px solid rgba(139, 92, 246, 0.2)";
@@ -4180,7 +4336,7 @@
             container.appendChild(msg);
             container.scrollTop = container.scrollHeight;
         }
-        
+
         function sendCopilotQuickAction(type) {
             if (!selectedEditorLineId) {
                 appendCopilotMessage("assistant", "⚠️ Please select a screenplay block in the editor feed first to apply quick actions.");
@@ -4188,9 +4344,9 @@
             }
             const line = editorLines.find(l => l.line_id === selectedEditorLineId);
             if (!line) return;
-            
+
             const currentText = line.dialogue || line.text || "";
-            
+
             if (type === 'fix') {
                 appendCopilotMessage("user", "Fix typography and formatting for this block.");
                 showCopilotThinking();
@@ -4206,7 +4362,7 @@
                 setTimeout(() => {
                     removeCopilotThinking();
                     const words = currentText.split(/\s+/).filter(w => w.length > 5);
-                    const sampleWord = words.length > 0 ? words[0].replace(/[.,\/#!$%\^&\*;:{}=\-_`~()“]/g,"") : "manuscript";
+                    const sampleWord = words.length > 0 ? words[0].replace(/[.,\/#!$%\^&\*;:{}=\-_`~()“]/g, "") : "manuscript";
                     let phonetic = "man-yoo-skript";
                     if (sampleWord.toLowerCase() === "peter") phonetic = "pee-tur";
                     else if (sampleWord.toLowerCase() === "mcrobert") phonetic = "mac-ro-burt";
@@ -4233,7 +4389,7 @@
                 }, 1200);
             }
         }
-        
+
         function showCopilotThinking() {
             const container = document.getElementById("copilotChatMessages");
             const loader = document.createElement("div");
@@ -4245,22 +4401,22 @@
             container.appendChild(loader);
             container.scrollTop = container.scrollHeight;
         }
-        
+
         function removeCopilotThinking() {
             const loader = document.getElementById("copilot-thinking-bubble");
             if (loader) loader.remove();
         }
-        
+
         function sendCopilotCustomMessage() {
             const input = document.getElementById("copilotInput");
             if (!input) return;
             const query = input.value.trim();
             if (!query) return;
-            
+
             appendCopilotMessage("user", query);
             input.value = "";
             showCopilotThinking();
-            
+
             setTimeout(() => {
                 removeCopilotThinking();
                 if (!selectedEditorLineId) {
@@ -4269,7 +4425,7 @@
                 }
                 const line = editorLines.find(l => l.line_id === selectedEditorLineId);
                 const text = line.dialogue || line.text || "";
-                
+
                 if (query.toLowerCase().includes("phonetic")) {
                     appendCopilotMessage("assistant", `Generated phonetic spelling override:<br><br><strong>"fye-er-spee-kur"</strong><br><br><button class="btn-upload" onclick="applyCopilotPhonetic('${line.line_id}', 'fye-er-spee-kur')" style="font-size:11px; padding:4px 10px; background:var(--accent-teal);">Apply Phonetic Override</button>`);
                 } else if (query.toLowerCase().includes("exciting") || query.toLowerCase().includes("emotion")) {
@@ -4280,7 +4436,7 @@
                 }
             }, 1200);
         }
-        
+
         function applyCopilotRewrite(lineId, newText) {
             const line = editorLines.find(l => l.line_id === lineId);
             if (line) {
@@ -4296,14 +4452,14 @@
                 appendCopilotMessage("assistant", "✓ Rewrite successfully applied to the screenplay card!");
             }
         }
-        
+
         function applyCopilotPhonetic(lineId, phonetic) {
             updateLinePhoneticOverride(lineId, phonetic);
             selectEditorLine(lineId);
             addConsoleLog("INFO", `[Local Llama] Applied phonetic override "${phonetic}" to line: ${lineId}`);
             appendCopilotMessage("assistant", "✓ Phonetic override successfully applied to Director's Drawer!");
         }
-        
+
         function applyCopilotSplit(lineId, text1, text2) {
             let splitDone = false;
             currentHierarchy.parts.forEach(part => {
@@ -4318,7 +4474,7 @@
                             } else {
                                 originalLine.dialogue = text1;
                             }
-                            
+
                             const newLine = JSON.parse(JSON.stringify(originalLine));
                             newLine.line_id = "line_" + Math.random().toString(36).substr(2, 9);
                             if (newLine.segment_type === 'narrative') {
@@ -4334,7 +4490,7 @@
                     });
                 });
             });
-            
+
             if (splitDone) {
                 saveHierarchyStateDebounced();
                 initEditorVirtualList();
@@ -4349,25 +4505,25 @@
             const select = document.getElementById("expressVoiceSelect");
             const btn = document.getElementById("btnExpressVoicePreview");
             if (!select || !btn) return;
-            
+
             const voiceVal = select.value;
             const voiceText = select.options[select.selectedIndex].text;
-            
+
             const originalText = btn.innerHTML;
-            
+
             // Stop any currently playing audio
             if (currentPreviewAudio) {
                 try {
                     currentPreviewAudio.pause();
-                } catch(e) {}
+                } catch (e) {}
                 currentPreviewAudio = null;
             }
-            
+
             btn.disabled = true;
             btn.innerHTML = "⏳ Synthesizing...";
             btn.style.borderColor = "var(--accent-amber)";
             btn.style.color = "var(--accent-amber)";
-            
+
             let previewSentence = "Volcano Works is preparing your story preview.";
             if (currentHierarchy && editorLines.length > 0) {
                 const lineObj = editorLines.find(l => (l.dialogue || l.text || "").trim().length > 0);
@@ -4375,27 +4531,27 @@
                     previewSentence = lineObj.dialogue || lineObj.text;
                 }
             }
-            
+
             const words = previewSentence.split(/\s+/);
             if (words.length > 30) {
                 previewSentence = words.slice(0, 30).join(" ") + "...";
             }
-            
+
             addConsoleLog("INFO", `[Audio Preview] Requesting backend voice synthesis preview...`);
             addConsoleLog("INFO", `[Audio Preview] Text: "${previewSentence}"`);
             addConsoleLog("INFO", `[Audio Preview] Voice: "${voiceText}"`);
-            
+
             const url = `${API_BASE}/api/preview_voice?voice=${encodeURIComponent(voiceVal)}&text=${encodeURIComponent(previewSentence)}`;
-            
+
             const audio = new Audio(url);
             currentPreviewAudio = audio;
-            
+
             audio.onplay = () => {
                 btn.innerHTML = "🔊 Playing Preview";
                 btn.style.borderColor = "var(--accent-teal)";
                 btn.style.color = "var(--accent-teal)";
             };
-            
+
             audio.onended = () => {
                 btn.disabled = false;
                 btn.innerHTML = originalText;
@@ -4404,7 +4560,7 @@
                 addConsoleLog("INFO", `[Audio Preview] Synthesis completed. Finished playing preview.`);
                 currentPreviewAudio = null;
             };
-            
+
             audio.onerror = (e) => {
                 btn.disabled = false;
                 btn.innerHTML = originalText;
@@ -4413,7 +4569,7 @@
                 addConsoleLog("ERROR", `[Audio Preview] Failed to load/play preview audio from backend.`);
                 currentPreviewAudio = null;
             };
-            
+
             audio.play().catch(err => {
                 console.error("Audio playback error:", err);
                 btn.disabled = false;
@@ -4424,7 +4580,7 @@
                 currentPreviewAudio = null;
             });
         }
-
     </script>
 </body>
+
 </html>

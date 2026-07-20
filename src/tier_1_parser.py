@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Firespeaker Tier 1 Ingestion Pipeline
+Caldera Engine Tier 1 Ingestion Pipeline
 Deterministic, zero-cost text-slicing engine using Pydantic validation.
 """
 
@@ -1814,7 +1814,7 @@ def ingest_manuscript_tier_1(file_path: str, chapters: str = None, enable_llm_en
 def main():
     """CLI and Stress Testing tool."""
     import argparse
-    parser = argparse.ArgumentParser(description="Firespeaker Tier 1 Ingestion Pipeline")
+    parser = argparse.ArgumentParser(description="Caldera Engine Tier 1 Ingestion Pipeline")
     parser.add_argument("--input", type=str, help="Path to input raw manuscript text file")
     parser.add_argument("--input-dir", type=str, help="Directory of .txt manuscripts to batch-process (empty files skipped)")
     parser.add_argument("--output", type=str, help="Path to save validated JSON manifest (or output directory in --input-dir mode; default scratch/corpus_analysis)")

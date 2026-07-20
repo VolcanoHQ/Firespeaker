@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Firespeaker Tier Preview -- "hear your book at every tier" from ONE scene.
+Caldera Engine Tier Preview -- "hear your book at every tier" from ONE scene.
 
 The product funnel: tiers are chosen early, and a single-scene preview shows
 what each buys before any full-book spend. Two parts:

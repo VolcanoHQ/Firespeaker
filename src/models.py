@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Firespeaker Studio - Pydantic Data Models
+Volcano Studios - Pydantic Data Models
 Centralizes standard validation schemas for manuscript manifests, chapters, scenes, and lines.
 """
 

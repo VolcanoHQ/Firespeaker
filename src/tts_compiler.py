@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Firespeaker TTS Compiler Wrapper
+Caldera Engine TTS Compiler Wrapper
 Executes speech synthesis, applies speed and pitch modifiers, appends post-padding silence,
 concatenates tracks, mixes background sounds, and generates the mastered QC compliance report.
 """
@@ -14,7 +14,7 @@ import subprocess
 import wave
 import numpy as np
 from typing import Dict, Any, List
-from src.main import FirespeakerPipeline
+from src.main import CalderaPipeline
 
 logger = logging.getLogger("TTSCompiler")
 
@@ -194,8 +194,8 @@ def compile_modified_json(script_data: Dict[str, Any], output_master_wav: str, p
     Executes end-to-end voice synthesis and mixing starting directly from a structured script JSON.
     Dynamically applies performance modifiers (speed/pitch) and custom post-padding silence.
     """
-    logger.info("Initializing Firespeaker pipeline compiler...")
-    pipeline = FirespeakerPipeline()
+    logger.info("Initializing Caldera Engine pipeline compiler...")
+    pipeline = CalderaPipeline()
     
     # Retrieve user_tier from script metadata if present
     tier = script_data.get("metadata", {}).get("user_tier", user_tier)

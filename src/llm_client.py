@@ -2,12 +2,12 @@
 # -*- coding: utf-8 -*-
 
 """
-Firespeaker LLM Client
+Caldera Engine LLM Client
 Single chokepoint for all LLM backend access: Gemini Flash (free tier) ->
 Groq Llama-3.1-8B-Instant (free tier) -> local Ollama -> None.
 
 Tier 1 ingestion (src/tier_1_parser.py) never imports this module unless a
-caller explicitly opts in to LLM enrichment. When FIRESPEAKER_LLM_ENRICHMENT=off
+caller explicitly opts in to LLM enrichment. When CALDERA_LLM_ENRICHMENT=off
 (or no keys/backends are reachable), query_llm_json() returns (None, None) and
 callers fall back to their existing non-LLM heuristics.
 """
@@ -79,12 +79,12 @@ def _select_preferred_ollama_model(available_models: List[str], requested_model:
                 return model
         logger.warning(f"Requested Ollama model '{requested_model}' is not installed. Available models: {available_models}")
 
-    env_override = os.getenv("FIRESPEAKER_OLLAMA_MODEL")
+    env_override = os.getenv("CALDERA_OLLAMA_MODEL")
     if env_override:
         for model in available_models:
             if model == env_override:
                 return model
-        logger.warning(f"FIRESPEAKER_OLLAMA_MODEL='{env_override}' is not installed. Available models: {available_models}")
+        logger.warning(f"CALDERA_OLLAMA_MODEL='{env_override}' is not installed. Available models: {available_models}")
 
     lowered_models = [(model, model.lower()) for model in available_models]
     for pattern in OLLAMA_MODEL_PREFERENCE_PATTERNS:
@@ -96,7 +96,7 @@ def _select_preferred_ollama_model(available_models: List[str], requested_model:
 
 
 def _is_enrichment_enabled() -> bool:
-    flag = os.getenv("FIRESPEAKER_LLM_ENRICHMENT", "on").strip().lower()
+    flag = os.getenv("CALDERA_LLM_ENRICHMENT", "on").strip().lower()
     return flag not in ("off", "0", "false", "no")
 
 

@@ -2,15 +2,15 @@
 # -*- coding: utf-8 -*-
 
 """
-Firespeaker user management (T2-1: the foundation).
+Caldera Engine user management (T2-1: the foundation).
 
 Local-first identity for Volcano Studios: magic-link auth (links land in a dev
 outbox file until real SMTP is configured), opaque session tokens in SQLite,
 and the "local" -> real-user migration that the `owner` fields planted across
 render jobs were waiting for.
 
-Auth is OFF by default (FIRESPEAKER_AUTH unset/"off"): every surface behaves
-exactly as before and ownership defaults to "local". With FIRESPEAKER_AUTH=on
+Auth is OFF by default (CALDERA_AUTH unset/"off"): every surface behaves
+exactly as before and ownership defaults to "local". With CALDERA_AUTH=on
 the server refuses unauthenticated API access and stamps real user ids onto
 everything owned.
 """
@@ -37,7 +37,7 @@ COOKIE_NAME = "fs_session"
 
 
 def auth_enabled() -> bool:
-    return os.environ.get("FIRESPEAKER_AUTH", "off").lower() in ("on", "1", "true")
+    return os.environ.get("CALDERA_AUTH", "off").lower() in ("on", "1", "true")
 
 
 def _conn() -> sqlite3.Connection:
@@ -209,7 +209,7 @@ def claim_local(email: str) -> Dict[str, Any]:
 
 
 def main():
-    p = argparse.ArgumentParser(description="Firespeaker user management")
+    p = argparse.ArgumentParser(description="Caldera Engine user management")
     sub = p.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("request-login"); s.add_argument("--email", required=True)
     s = sub.add_parser("claim-local"); s.add_argument("--email", required=True)

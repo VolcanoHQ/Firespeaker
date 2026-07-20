@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Firespeaker Expressive Speech Generation Engine
+Caldera Engine Expressive Speech Generation Engine
 Implements the zero-shot XTTS-v2 and generative Bark synthesizers
 with integrated GPU VRAM pre-flight checks, double-load prevention,
 and strict MemPalace drawer identity verification.
@@ -220,12 +220,12 @@ class VoiceSynthesizer:
 
     def __init__(self, mempalace_path: str = "data/mempalace", force_cpu: bool = False):
         self.mempalace_path = mempalace_path
-        # Device policy (T2-6): FIRESPEAKER_TTS_DEVICE = auto (default) | cpu | cuda.
+        # Device policy (T2-6): CALDERA_TTS_DEVICE = auto (default) | cpu | cuda.
         # "auto" uses the GPU when preflight passes and falls back to CPU otherwise;
         # "cpu" pins CPU (the old force_cpu behavior); "cuda" insists on trying the
         # GPU even if a caller passed force_cpu. Callers should normally NOT pass
         # force_cpu anymore -- the env policy is the single source of truth.
-        policy = os.getenv("FIRESPEAKER_TTS_DEVICE", "auto").strip().lower()
+        policy = os.getenv("CALDERA_TTS_DEVICE", "auto").strip().lower()
         if policy == "cpu":
             self.force_cpu = True
         elif policy == "cuda":
@@ -340,10 +340,10 @@ class VoiceSynthesizer:
         if target == "xtts":
             logger.info(f"Loading XTTS-v2 checkpoint on {device}...")
             # XTTS-v2 runs fine on CPU (slower, ~10s/sentence) -- force_cpu selects
-            # the device, it does NOT imply mock mode. FIRESPEAKER_TTS=mock is the
+            # the device, it does NOT imply mock mode. CALDERA_TTS=mock is the
             # explicit kill switch for tests that need the fast placeholder path.
-            if os.getenv("FIRESPEAKER_TTS", "").strip().lower() == "mock":
-                logger.info("FIRESPEAKER_TTS=mock set. XTTS-v2 Mock model initialized.")
+            if os.getenv("CALDERA_TTS", "").strip().lower() == "mock":
+                logger.info("CALDERA_TTS=mock set. XTTS-v2 Mock model initialized.")
             elif HAS_TORCH:
                 try:
                     from TTS.api import TTS
@@ -483,7 +483,7 @@ class VoiceSynthesizer:
         
         if not char_drawer:
             raise MissingDrawerError(
-                f"Firespeaker Identity Integrity Blocked! "
+                f"Caldera Engine Identity Integrity Blocked! "
                 f"The character '{character_name}' has no registered voice drawer in MemPalace. "
                 f"Synthesizer refused to run to prevent Narrator voice cross-contamination."
             )
@@ -834,7 +834,7 @@ class VoiceSynthesizer:
             except Exception as e:
                 logger.warning(f"Failed to generate physical mock wave: {e}. Falling back to standard flat mock file.")
                 with open(output_wav_path, "wb") as f:
-                    f.write(b"MOCK_WAV_HEADER_DATA_FIRESPEAKER_AUDIO")
+                    f.write(b"MOCK_WAV_HEADER_DATA_CALDERA_AUDIO")
             
         # Log generated output to MemPalace Rooms
         self.palace.log_room(
@@ -861,12 +861,12 @@ class VoiceSynthesizer:
 def main():
     """CLI testing harness to verify double-load, VRAM checking, and drawer validation."""
     import argparse
-    parser = argparse.ArgumentParser(description="Firespeaker Synthesizer Resource Harness")
+    parser = argparse.ArgumentParser(description="Caldera Engine Synthesizer Resource Harness")
     parser.add_argument("--test", action="store_true", help="Run comprehensive VRAM & drawer compliance self-test")
     args = parser.parse_args()
     
     if args.test:
-        print("\n=== RUNNING FIRESPEAKER SYNTHESIZER INTEGRITY HARNESS ===")
+        print("\n=== RUNNING CALDERA ENGINE SYNTHESIZER INTEGRITY HARNESS ===")
         
         # Set up a test mempalace directory
         mempalace_dir = "scratch/test_synthesizer_palace"

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Firespeaker Ingestion Stage 1: Clutter Scrubber
+Caldera Engine Ingestion Stage 1: Clutter Scrubber
 Heuristically and semantically removes Gutenberg front-matter, title pages,
 publisher info, and credits using Narrative Density and Local LLM fallback.
 """

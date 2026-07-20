@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Firespeaker API Gateway
+Caldera Engine API Gateway
 FastAPI server hosting the Studio REST endpoints, WebSocket Lookahead status alerts,
 and routing final GUI override payloads to the TTS compilation pipeline.
 """
@@ -41,7 +41,7 @@ logging.basicConfig(
 logger = logging.getLogger("APIGateway")
 
 app = FastAPI(
-    title="Firespeaker Studio Backend Orchestration API",
+    title="Volcano Studios Backend Orchestration API",
     description="Tier 1 State Management & Asynchronous Lookahead Queue Gateway",
     version="1.0.0"
 )
@@ -67,7 +67,7 @@ main_loop = None
 async def startup_event():
     global main_loop
     main_loop = asyncio.get_running_loop()
-    logger.info("Firespeaker API Gateway startup complete.")
+    logger.info("Caldera Engine API Gateway startup complete.")
 
 # ----------------------------------------------------
 # WebSocket Connection Manager
@@ -235,7 +235,7 @@ class CompileRequest(BaseModel):
 @app.get("/")
 @app.get("/index.html")
 def get_gui():
-    """Serves the central Firespeaker Studio editor dashboard."""
+    """Serves the central Volcano Studios editor dashboard."""
     gui_file = "src/static/index.html"
     if os.path.exists(gui_file):
         return FileResponse(gui_file)

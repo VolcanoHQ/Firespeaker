@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Firespeaker Studio Pipeline Orchestrator
+Volcano Studios Pipeline Orchestrator
 Ties together Ingestion & NLP Analysis, Spatial Memory Management,
 Expressive TTS Synthesis, and ACX Mixing & Mastering into a unified,
 production-grade command line interface.
@@ -28,10 +28,10 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
-logger = logging.getLogger("FirespeakerStudio")
+logger = logging.getLogger("CalderaEngine")
 
 
-class FirespeakerPipeline:
+class CalderaPipeline:
     """Master orchestrator managing cross-component relational and file flows."""
 
     def __init__(self, workspace_dir: str = "scratch/pipeline_workspace", production_tier: int = 1):
@@ -123,7 +123,7 @@ class FirespeakerPipeline:
 
     def run_full_pipeline(self, manuscript_path: str, output_master_wav: str, profile_name: str = "standard", user_tier: str = "free", chapters: str = None, enable_llm_enrichment: bool = False) -> bool:
         print("\n=======================================================")
-        print("=== FIRESPEAKER STUDIO: END-TO-END PIPELINE RUN ===")
+        print("=== CALDERA ENGINE: END-TO-END PIPELINE RUN ===")
         print("=======================================================\n")
         
         # 0. Set up default voices in database (if not registered already)
@@ -219,7 +219,7 @@ class FirespeakerPipeline:
         os.makedirs(os.path.dirname(attribution_log_path), exist_ok=True)
         with open(attribution_log_path, "w", encoding="utf-8") as f_log:
             f_log.write("=========================================================\n")
-            f_log.write("FIRESPEAKER ATTRIBUTION LOG: AUTO-ATTRIBUTED LINES\n")
+            f_log.write("CALDERA ENGINE ATTRIBUTION LOG: AUTO-ATTRIBUTED LINES\n")
             f_log.write("=========================================================\n\n")
             
             auto_count = 0
@@ -284,7 +284,7 @@ class FirespeakerPipeline:
 
 def main():
     """Main CLI orchestrator entrance."""
-    parser = argparse.ArgumentParser(description="Firespeaker Studio Pipeline CLI")
+    parser = argparse.ArgumentParser(description="Volcano Studios Pipeline CLI")
     
     # Complete end-to-end run commands
     parser.add_argument("--run-all", action="store_true", help="Run the complete end-to-end audiobook synthesis pipeline")
@@ -326,7 +326,7 @@ def main():
         if not input_path:
             input_path = "scratch/audit_manuscript.txt"
             
-        pipeline = FirespeakerPipeline()
+        pipeline = CalderaPipeline()
         # Verify input manuscript exists, or create a mock one
         if not os.path.exists(input_path):
             logger.info(f"Creating default audit manuscript at: {input_path}")

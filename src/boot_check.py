@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Firespeaker Boot Sequence -- environment doctor + self-healing startup.
+Caldera Engine Boot Sequence -- environment doctor + self-healing startup.
 
 Run at server start (and as `python -m src.boot_check`): verifies the runtime
 the pipeline depends on -- binaries, models, GPU driver state, provider keys,
@@ -39,7 +39,7 @@ except ImportError:
 
 STUB_DIR = os.path.abspath("data/runtime_stubs")
 REPORT_PATH = "data/boot_report.json"
-_REEXEC_FLAG = "FIRESPEAKER_BOOT_REEXEC"
+_REEXEC_FLAG = "CALDERA_BOOT_REEXEC"
 
 _CUDA_STUB_C = "void cuInit(void){}\n"
 _NVML_STUB_C = """int nvmlInit_v2(void){return 1;}
@@ -141,7 +141,7 @@ def run_boot_checks(fast: bool = False) -> Dict[str, Any]:
             detail = probe["detail"]
         if os.environ.get(_REEXEC_FLAG):
             status, detail = "warn", "running in CPU-only stub mode (GPU driver was wedged at boot; restart WSL to restore)"
-        policy = os.getenv("FIRESPEAKER_TTS_DEVICE", "auto")
+        policy = os.getenv("CALDERA_TTS_DEVICE", "auto")
         detail += f" | TTS device policy: {policy}"
         checks.append(_check("torch/gpu", status, detail))
 
@@ -212,7 +212,7 @@ def run_boot_checks(fast: bool = False) -> Dict[str, Any]:
 
 def print_report(report: Dict[str, Any]) -> None:
     icons = {"ok": "✓", "warn": "!", "fail": "✗"}
-    print(f"\n=== FIRESPEAKER BOOT CHECK: {report['status'].upper()} ===")
+    print(f"\n=== CALDERA ENGINE BOOT CHECK: {report['status'].upper()} ===")
     for c in report["checks"]:
         print(f"  [{icons[c['status']]}] {c['check']:20} {c['detail']}")
     print()

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Firespeaker High-Throughput Inference Client (vLLM)
+Caldera Engine High-Throughput Inference Client (vLLM)
 Coordinates batch processing of LLM requests (e.g. Dialogue attribution fallbacks)
 utilizing vLLM's PagedAttention and continuous batching capabilities.
 """

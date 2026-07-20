@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Firespeaker Ingestion Test Suite
+Caldera Engine Ingestion Test Suite
 Runs bulk Stage 1 Ingestion (Clutter Scrubber) across the entire corpus
 to verify start boundaries and generate a verification report.
 """

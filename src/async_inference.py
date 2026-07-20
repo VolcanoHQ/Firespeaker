@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Firespeaker High-Throughput Inference Client Wrapper
+Caldera Engine High-Throughput Inference Client Wrapper
 Handles parallel async API calls to vLLM, llama.cpp, or Ollama,
 incorporating retry loops, timeout guards, and schema constraints.
 """

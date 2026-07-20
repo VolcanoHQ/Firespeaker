@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Firespeaker Scene Director (Layer 3: Production Direction)
+Caldera Engine Scene Director (Layer 3: Production Direction)
 
 Consumes a Tier 1 enriched ManuscriptManifest (Chain A output) plus the per-book
 tier1 pipeline artifacts, and produces per-scene production direction:
@@ -15,7 +15,7 @@ Outputs (data/corpus/pipeline/{book}/tier3/):
   production_script.txt    human-readable, same format as HumanProcessed Tier 3 gold
   generation_prompts.json  per-scene prompts for downstream media generation (Chain C/E)
 
-See docs/Firespeaker Production Knowledge & Media Generation Roadmap.md.
+See docs/Caldera Engine Production Knowledge & Media Generation Roadmap.md.
 """
 
 import os
@@ -1361,7 +1361,7 @@ def direct_manifest(manifest_path: str, sync_mempalace: bool = False) -> Dict[st
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Firespeaker Scene Director (Layer 3: Production Direction)")
+    parser = argparse.ArgumentParser(description="Caldera Engine Scene Director (Layer 3: Production Direction)")
     parser.add_argument("--manifest", type=str, required=True, help="Path to a Tier 1 enriched ManuscriptManifest JSON")
     parser.add_argument("--sync-mempalace", action="store_true", help="Sync production records into MemPalace (wings metadata + confirmed alias merges)")
     parser.add_argument("--sound-design-only", action="store_true", help="Run only the layered sound-design pass (writes sound_design.json, leaves direction artifacts alone)")

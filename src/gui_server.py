@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Firespeaker Studio - Local GUI Server
+Volcano Studios - Local GUI Server
 A zero-dependency standard Python HTTP API server hosting the workspace.
 """
 
@@ -150,12 +150,12 @@ PIPELINE_STATUS = {
 
 def bg_run_pipeline(filename: str, tier: int = 1, user_tier: str = "free"):
     """
-    Executes the FirespeakerPipeline full run on a background thread.
+    Executes the CalderaPipeline full run on a background thread.
     Updates the global PIPELINE_STATUS object for real-time progress polling.
     """
     global PIPELINE_STATUS
     try:
-        from src.main import FirespeakerPipeline
+        from src.main import CalderaPipeline
         filepath = os.path.join("data/corpus", filename)
         
         logger.info(f"[BG Compiler] Initializing pipeline run for {filename} (Tier {tier}, User Tier {user_tier})...")
@@ -163,7 +163,7 @@ def bg_run_pipeline(filename: str, tier: int = 1, user_tier: str = "free"):
         PIPELINE_STATUS["step"] = "Preparing workspace & loading character drawers..."
         PIPELINE_STATUS["progress"] = 15
         
-        pipeline = FirespeakerPipeline(production_tier=tier)
+        pipeline = CalderaPipeline(production_tier=tier)
         
         logger.info("[BG Compiler] Ingesting and parsing script lines...")
         PIPELINE_STATUS["step"] = "Running manuscript text parsing & LLM dialogue attribution..."
@@ -211,7 +211,7 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
 
     # ------------------------------------------------------------------
     # Auth (T2-1): OFF by default -- identical legacy behavior, owner "local".
-    # FIRESPEAKER_AUTH=on refuses unauthenticated API access on every surface.
+    # CALDERA_AUTH=on refuses unauthenticated API access on every surface.
     # ------------------------------------------------------------------
     _AUTH_EXEMPT = ("/login", "/api/auth/")
 
@@ -2320,7 +2320,7 @@ def main():
     # Threading: a slow request (XTTS clone preview takes tens of seconds on CPU)
     # must not block the progress polls and page loads of every other client.
     httpd = ThreadingHTTPServer(server_address, StudioRequestHandler)
-    logger.info(f"Firespeaker Studio GUI Server launched successfully at http://localhost:{port}/")
+    logger.info(f"Volcano Studios GUI Server launched successfully at http://localhost:{port}/")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

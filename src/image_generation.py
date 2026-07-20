@@ -2,13 +2,13 @@
 # -*- coding: utf-8 -*-
 
 """
-Firespeaker Image Generation (Chain E: scene stills & character sheets)
+Caldera Engine Image Generation (Chain E: scene stills & character sheets)
 
 Local Stable Diffusion (sd-turbo: 1-4 inference steps, fits the 6GB GPU) consuming
 the prompts the production pipeline already builds: per-scene image_prompt from the
 Music Director's environment + the Character Designer's (AI-10) visual profiles.
 
-Cached by prompt hash under data/generated_images/. Set FIRESPEAKER_IMAGEGEN=off
+Cached by prompt hash under data/generated_images/. Set CALDERA_IMAGEGEN=off
 to disable. Same contract as audio generation: try local model, degrade to None.
 
 Usage:
@@ -40,7 +40,7 @@ def _load_model() -> bool:
     global _pipe, _device
     if _pipe is not None:
         return True
-    if os.getenv("FIRESPEAKER_IMAGEGEN", "on").strip().lower() in ("off", "0", "false"):
+    if os.getenv("CALDERA_IMAGEGEN", "on").strip().lower() in ("off", "0", "false"):
         return False
     try:
         import torch
@@ -113,7 +113,7 @@ def _load_ip_model() -> bool:
     global _ip_pipe, _ip_device
     if _ip_pipe is not None:
         return True
-    if os.getenv("FIRESPEAKER_IMAGEGEN", "on").strip().lower() in ("off", "0", "false"):
+    if os.getenv("CALDERA_IMAGEGEN", "on").strip().lower() in ("off", "0", "false"):
         return False
     try:
         import torch
@@ -270,7 +270,7 @@ def generate_character_sheets(manifest_path: str) -> str:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Firespeaker Image Generation (Chain E)")
+    parser = argparse.ArgumentParser(description="Caldera Engine Image Generation (Chain E)")
     parser.add_argument("--prompt", type=str, help="Single test image prompt")
     parser.add_argument("--out", type=str, default="scratch/test_image.png")
     parser.add_argument("--scene-stills", action="store_true", help="Generate one still per scene for a directed book")

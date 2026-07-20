@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Firespeaker Voice Cloning Studio -- backend for the guided wizard.
+Caldera Engine Voice Cloning Studio -- backend for the guided wizard.
 
 The dataset builder (src/voice_dataset.py) is the engine; this module adds the
 interactive session layer the wizard drives:

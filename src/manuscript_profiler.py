@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Firespeaker Manuscript Profiling Engine
+Caldera Engine Manuscript Profiling Engine
 Analyzes manuscripts to extract high-level overview statistics,
 character voice distributions, emotional profiles, and attribution confidence
 to feed interactive user-facing GUI dashboards.
@@ -206,7 +206,7 @@ class ManuscriptProfiler:
 def main():
     """CLI and self-test harness for the profiling suite."""
     import argparse
-    parser = argparse.ArgumentParser(description="Firespeaker Manuscript Dashboard Profiler")
+    parser = argparse.ArgumentParser(description="Caldera Engine Manuscript Dashboard Profiler")
     parser.add_argument("--input", type=str, help="Path to manuscript book text file to analyze")
     parser.add_argument("--output", type=str, default="scratch/manuscript_profile_summary.json", help="Path to save output dashboard JSON metadata")
     parser.add_argument("--test", action="store_true", help="Run self-test on the smallest Micro-Tier book (Peter Rabbit)")
