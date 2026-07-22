@@ -1,264 +1,419 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>The Caldera Engine — Volcano Studios</title>
-  <meta name="description" content="Manuscript in, audiobook out. The Caldera Engine turns a book into a fully-produced audiobook — narration, cast voices, music, sound design — in about an hour.">
-  <style>
-    :root {
-      --bg: #0d0b0e;
-      --bg-panel: #17131a;
-      --bg-card: #1e1822;
-      --border: #2e2533;
-      --text: #e8e2ea;
-      --text-dim: #9a8fa3;
-      --lava: #ff5a2d;
-      --lava-dim: #c93e1c;
-      --ember: #ffb86b;
-      --teal: #4fd6c5;
-    }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html { scroll-behavior: smooth; }
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-      line-height: 1.6;
-    }
-    a { color: var(--ember); text-decoration: none; }
-    a:hover { text-decoration: underline; }
-    .wrap { max-width: 960px; margin: 0 auto; padding: 0 24px; }
-
-    header {
-      padding: 96px 0 72px;
-      text-align: center;
-      background:
-        radial-gradient(ellipse 70% 50% at 50% 110%, rgba(255, 90, 45, 0.22), transparent),
-        radial-gradient(ellipse 40% 30% at 50% 115%, rgba(255, 184, 107, 0.18), transparent);
-      border-bottom: 1px solid var(--border);
-    }
-    .brand {
-      font-size: 0.85rem;
-      letter-spacing: 0.25em;
-      text-transform: uppercase;
-      color: var(--text-dim);
-      margin-bottom: 16px;
-    }
-    h1 {
-      font-size: clamp(2.2rem, 6vw, 3.6rem);
-      font-weight: 800;
-      letter-spacing: -0.02em;
-      background: linear-gradient(180deg, var(--text) 40%, var(--ember));
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
-      margin-bottom: 20px;
-    }
-    .tagline {
-      font-size: clamp(1.05rem, 2.5vw, 1.3rem);
-      color: var(--text-dim);
-      max-width: 640px;
-      margin: 0 auto 36px;
-    }
-    .tagline strong { color: var(--text); }
-    .cta-row { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
-    .btn {
-      display: inline-block;
-      padding: 12px 26px;
-      border-radius: 8px;
-      font-weight: 600;
-      border: 1px solid var(--border);
-    }
-    .btn-primary {
-      background: linear-gradient(180deg, var(--lava), var(--lava-dim));
-      color: #fff;
-      border-color: var(--lava-dim);
-    }
-    .btn-primary:hover { filter: brightness(1.1); text-decoration: none; }
-    .btn-ghost { color: var(--text); background: var(--bg-card); }
-    .btn-ghost:hover { border-color: var(--lava-dim); text-decoration: none; }
-
-    section { padding: 64px 0; border-bottom: 1px solid var(--border); }
-    h2 {
-      font-size: 1.7rem;
-      margin-bottom: 8px;
-      color: var(--ember);
-    }
-    .sub { color: var(--text-dim); margin-bottom: 32px; max-width: 700px; }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      background: var(--bg-panel);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      overflow: hidden;
-    }
-    th, td { padding: 14px 16px; text-align: left; border-bottom: 1px solid var(--border); }
-    th {
-      background: var(--bg-card);
-      color: var(--ember);
-      font-size: 0.85rem;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-    }
-    tr:last-child td { border-bottom: none; }
-    td:first-child { font-weight: 700; white-space: nowrap; }
-    .roadmap td:first-child { color: var(--teal); }
-
-    .steps {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 16px;
-    }
-    .step {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 22px 18px;
-    }
-    .step .num {
-      font-size: 0.8rem;
-      font-weight: 700;
-      color: var(--lava);
-      letter-spacing: 0.15em;
-      text-transform: uppercase;
-    }
-    .step h3 { margin: 6px 0 8px; font-size: 1.05rem; }
-    .step p { color: var(--text-dim); font-size: 0.92rem; }
-
-    .split { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; }
-    .panel {
-      background: var(--bg-panel);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 26px;
-    }
-    .panel h3 { color: var(--teal); margin-bottom: 10px; }
-    .panel p { color: var(--text-dim); font-size: 0.95rem; }
-    .panel p + p { margin-top: 10px; }
-
-    .stats {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: 16px;
-      margin-top: 24px;
-    }
-    .stat {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 20px;
-      text-align: center;
-    }
-    .stat .big { font-size: 1.8rem; font-weight: 800; color: var(--lava); }
-    .stat .label { color: var(--text-dim); font-size: 0.85rem; margin-top: 4px; }
-
-    footer { padding: 48px 0; text-align: center; color: var(--text-dim); font-size: 0.9rem; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Caldera Engine — Volcano Studios</title>
+    <meta name="description" content="Manuscript in, audiobook out. The Caldera Engine turns a book into a fully-produced audiobook — narration, cast voices, music, sound design — in about an hour.">
+    <style>
+         :root {
+            --bg: #0d0b0e;
+            --bg-panel: #17131a;
+            --bg-card: #1e1822;
+            --border: #2e2533;
+            --text: #e8e2ea;
+            --text-dim: #9a8fa3;
+            --lava: #ff5a2d;
+            --lava-dim: #c93e1c;
+            --ember: #ffb86b;
+            --teal: #4fd6c5;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html {
+            scroll-behavior: smooth;
+        }
+        
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+            line-height: 1.6;
+        }
+        
+        a {
+            color: var(--ember);
+            text-decoration: none;
+        }
+        
+        a:hover {
+            text-decoration: underline;
+        }
+        
+        .wrap {
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+        
+        header {
+            padding: 96px 0 72px;
+            text-align: center;
+            background: radial-gradient(ellipse 70% 50% at 50% 110%, rgba(255, 90, 45, 0.22), transparent), radial-gradient(ellipse 40% 30% at 50% 115%, rgba(255, 184, 107, 0.18), transparent);
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .brand {
+            font-size: 0.85rem;
+            letter-spacing: 0.25em;
+            text-transform: uppercase;
+            color: var(--text-dim);
+            margin-bottom: 16px;
+        }
+        
+        h1 {
+            font-size: clamp(2.2rem, 6vw, 3.6rem);
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            background: linear-gradient(180deg, var(--text) 40%, var(--ember));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            margin-bottom: 20px;
+        }
+        
+        .tagline {
+            font-size: clamp(1.05rem, 2.5vw, 1.3rem);
+            color: var(--text-dim);
+            max-width: 640px;
+            margin: 0 auto 36px;
+        }
+        
+        .tagline strong {
+            color: var(--text);
+        }
+        
+        .cta-row {
+            display: flex;
+            gap: 14px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 12px 26px;
+            border-radius: 8px;
+            font-weight: 600;
+            border: 1px solid var(--border);
+        }
+        
+        .btn-primary {
+            background: linear-gradient(180deg, var(--lava), var(--lava-dim));
+            color: #fff;
+            border-color: var(--lava-dim);
+        }
+        
+        .btn-primary:hover {
+            filter: brightness(1.1);
+            text-decoration: none;
+        }
+        
+        .btn-ghost {
+            color: var(--text);
+            background: var(--bg-card);
+        }
+        
+        .btn-ghost:hover {
+            border-color: var(--lava-dim);
+            text-decoration: none;
+        }
+        
+        section {
+            padding: 64px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        h2 {
+            font-size: 1.7rem;
+            margin-bottom: 8px;
+            color: var(--ember);
+        }
+        
+        .sub {
+            color: var(--text-dim);
+            margin-bottom: 32px;
+            max-width: 700px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        th,
+        td {
+            padding: 14px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        th {
+            background: var(--bg-card);
+            color: var(--ember);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+        
+        tr:last-child td {
+            border-bottom: none;
+        }
+        
+        td:first-child {
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        
+        .roadmap td:first-child {
+            color: var(--teal);
+        }
+        
+        .steps {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+        
+        .step {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 22px 18px;
+        }
+        
+        .step .num {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--lava);
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+        }
+        
+        .step h3 {
+            margin: 6px 0 8px;
+            font-size: 1.05rem;
+        }
+        
+        .step p {
+            color: var(--text-dim);
+            font-size: 0.92rem;
+        }
+        
+        .split {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+        }
+        
+        .panel {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 26px;
+        }
+        
+        .panel h3 {
+            color: var(--teal);
+            margin-bottom: 10px;
+        }
+        
+        .panel p {
+            color: var(--text-dim);
+            font-size: 0.95rem;
+        }
+        
+        .panel p+p {
+            margin-top: 10px;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-top: 24px;
+        }
+        
+        .stat {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .stat .big {
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: var(--lava);
+        }
+        
+        .stat .label {
+            color: var(--text-dim);
+            font-size: 0.85rem;
+            margin-top: 4px;
+        }
+        
+        footer {
+            padding: 48px 0;
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 0.9rem;
+        }
+    </style>
 </head>
+
 <body>
 
-  <header>
-    <div class="wrap">
-      <div class="brand">Volcano Studios</div>
-      <h1>The Caldera Engine</h1>
-      <p class="tagline">
-        Producing one audiobook costs $5,000–$15,000 and takes months.
-        The Caldera Engine turns a manuscript into a <strong>fully-produced audiobook</strong> —
-        narration, cast voices, music, sound design — <strong>in about an hour</strong>.
-      </p>
-      <div class="cta-row">
-        <a class="btn btn-primary" href="https://github.com/VolcanoHQ/caldera-engine">View on GitHub</a>
-        <a class="btn btn-ghost" href="#tiers">See the tiers</a>
-      </div>
-    </div>
-  </header>
+    <header>
+        <div class="wrap">
+            <div class="brand">Volcano Studios</div>
+            <h1>The Caldera Engine</h1>
+            <p class="tagline">
+                Producing one audiobook costs $5,000–$15,000 and takes months. The Caldera Engine turns a manuscript into a <strong>fully-produced audiobook</strong> — narration, cast voices, music, sound design — <strong>in about an hour</strong>.
+            </p>
+            <div class="cta-row">
+                <a class="btn btn-primary" href="https://github.com/VolcanoHQ/caldera-engine">View on GitHub</a>
+                <a class="btn btn-ghost" href="#tiers">See the tiers</a>
+            </div>
+        </div>
+    </header>
 
-  <section id="tiers">
-    <div class="wrap">
-      <h2>EPUB in → one button → chaptered audiobook out</h2>
-      <p class="sub">Three production tiers shipping today, chosen by the author.</p>
-      <table>
-        <tr><th>Tier</th><th>What you hear</th><th>Analogy</th></tr>
-        <tr><td>Tier 1</td><td>Single narrator, ACX-compliant master</td><td>Standard audiobook</td></tr>
-        <tr><td>Tier 2</td><td>Narrator + a distinct voice for every character</td><td>Full-cast recording</td></tr>
-        <tr><td>Tier 3</td><td>Cast + scored music, ambience, layered sound effects</td><td>Graphic-Audio-style audio drama</td></tr>
-      </table>
-      <div class="stats">
-        <div class="stat"><div class="big">~1 hr</div><div class="label">upload to chaptered master</div></div>
-        <div class="stat"><div class="big">99%+</div><div class="label">measured attribution accuracy</div></div>
-        <div class="stat"><div class="big">1–3%</div><div class="label">of a traditional studio bill</div></div>
-      </div>
-    </div>
-  </section>
+    <section id="tiers">
+        <div class="wrap">
+            <h2>EPUB in → one button → chaptered audiobook out</h2>
+            <p class="sub">Three production tiers shipping today, chosen by the author.</p>
+            <table>
+                <tr>
+                    <th>Tier</th>
+                    <th>What you hear</th>
+                    <th>Analogy</th>
+                </tr>
+                <tr>
+                    <td>Tier 1</td>
+                    <td>Single narrator, ACX-compliant master</td>
+                    <td>Standard audiobook</td>
+                </tr>
+                <tr>
+                    <td>Tier 2</td>
+                    <td>Narrator + a distinct voice for every character</td>
+                    <td>Full-cast recording</td>
+                </tr>
+                <tr>
+                    <td>Tier 3</td>
+                    <td>Cast + scored music, ambience, layered sound effects</td>
+                    <td>Graphic-Audio-style audio drama</td>
+                </tr>
+            </table>
+            <div class="stats">
+                <div class="stat">
+                    <div class="big">~1 hr</div>
+                    <div class="label">upload to chaptered master</div>
+                </div>
+                <div class="stat">
+                    <div class="big">99%+</div>
+                    <div class="label">measured attribution accuracy</div>
+                </div>
+                <div class="stat">
+                    <div class="big">1–3%</div>
+                    <div class="label">of a traditional studio bill</div>
+                </div>
+            </div>
+        </div>
+    </section>
 
-  <section>
-    <div class="wrap">
-      <h2>How it works</h2>
-      <p class="sub">A browser studio puts the author in the director's chair — not a black box.</p>
-      <div class="steps">
-        <div class="step">
-          <div class="num">01 · Upload</div>
-          <h3>Drop in a manuscript</h3>
-          <p>EPUB or plain text. Deterministic-first analysis finds parts, chapters, scenes, and every line of dialogue — zero LLM calls on clean manuscripts.</p>
+    <section>
+        <div class="wrap">
+            <h2>How it works</h2>
+            <p class="sub">A browser studio puts the author in the director's chair — not a black box.</p>
+            <div class="steps">
+                <div class="step">
+                    <div class="num">01 · Upload</div>
+                    <h3>Drop in a manuscript</h3>
+                    <p>EPUB or plain text. Deterministic-first analysis finds parts, chapters, scenes, and every line of dialogue — zero LLM calls on clean manuscripts.</p>
+                </div>
+                <div class="step">
+                    <div class="num">02 · Review</div>
+                    <h3>Correct anything</h3>
+                    <p>A review console for speaker attribution and scene boundaries. Preview any tier on a single scene before committing.</p>
+                </div>
+                <div class="step">
+                    <div class="num">03 · Direct</div>
+                    <h3>Mix like a director</h3>
+                    <p>Tier 3's multi-lane scene mixer: voice, music, ambience, and SFX on a timeline, with per-asset regeneration — new take, or your own prompt.</p>
+                </div>
+                <div class="step">
+                    <div class="num">04 · Render</div>
+                    <h3>One button</h3>
+                    <p>A chaptered, mastered M4B with a per-line timing manifest. Revisions are instant and free.</p>
+                </div>
+            </div>
         </div>
-        <div class="step">
-          <div class="num">02 · Review</div>
-          <h3>Correct anything</h3>
-          <p>A review console for speaker attribution and scene boundaries. Preview any tier on a single scene before committing.</p>
-        </div>
-        <div class="step">
-          <div class="num">03 · Direct</div>
-          <h3>Mix like a director</h3>
-          <p>Tier 3's multi-lane scene mixer: voice, music, ambience, and SFX on a timeline, with per-asset regeneration — new take, or your own prompt.</p>
-        </div>
-        <div class="step">
-          <div class="num">04 · Render</div>
-          <h3>One button</h3>
-          <p>A chaptered, mastered M4B with a per-line timing manifest. Revisions are instant and free.</p>
-        </div>
-      </div>
-    </div>
-  </section>
+    </section>
 
-  <section>
-    <div class="wrap">
-      <h2>A consent-based voice marketplace</h2>
-      <div class="split">
-        <div class="panel">
-          <h3>Actors get cast, not copied</h3>
-          <p>Voice actors record one ~15-minute session, publish a licensed voice with SHA-256 consent provenance, and get paid per use.</p>
-          <p>Authors audition voices by description and give every character a distinct, licensed performance.</p>
+    <section>
+        <div class="wrap">
+            <h2>A consent-based voice marketplace</h2>
+            <div class="split">
+                <div class="panel">
+                    <h3>Actors get cast, not copied</h3>
+                    <p>Voice actors record one ~15-minute session, publish a licensed voice with SHA-256 consent provenance, and get paid per use.</p>
+                    <p>Authors audition voices by description and give every character a distinct, licensed performance.</p>
+                </div>
+                <div class="panel">
+                    <h3>Measured, not promised</h3>
+                    <p>Every accuracy claim has a denominator: 99.2% dialogue attribution against human-cleaned gold references, ≤0.31% text contamination, regression-tested after every change.</p>
+                    <p>Les Misérables — 50 parts, 498 chapters, 723 scenes — parses fully deterministically.</p>
+                </div>
+            </div>
         </div>
-        <div class="panel">
-          <h3>Measured, not promised</h3>
-          <p>Every accuracy claim has a denominator: 99.2% dialogue attribution against human-cleaned gold references, ≤0.31% text contamination, regression-tested after every change.</p>
-          <p>Les Misérables — 50 parts, 498 chapters, 723 scenes — parses fully deterministically.</p>
+    </section>
+
+    <section>
+        <div class="wrap">
+            <h2>The road from audiobook to screen</h2>
+            <p class="sub">The same manuscript-understanding engine is the pre-production layer for video. Audio tiers ship today; the ladder keeps climbing.</p>
+            <table class="roadmap">
+                <tr>
+                    <th>Tier</th>
+                    <th>What you get</th>
+                    <th>Status</th>
+                </tr>
+                <tr>
+                    <td>Tier 4</td>
+                    <td>Illustrated / motion-comic edition, cut on the per-line timing track</td>
+                    <td>Near-term</td>
+                </tr>
+                <tr>
+                    <td>Tier 5</td>
+                    <td>Animated episodes with lip-synced dialogue</td>
+                    <td>Roadmap</td>
+                </tr>
+                <tr>
+                    <td>Tier 6</td>
+                    <td>Full screen adaptation — manuscript in, film out</td>
+                    <td>Vision</td>
+                </tr>
+            </table>
         </div>
-      </div>
-    </div>
-  </section>
+    </section>
 
-  <section>
-    <div class="wrap">
-      <h2>The road from audiobook to screen</h2>
-      <p class="sub">The same manuscript-understanding engine is the pre-production layer for video. Audio tiers ship today; the ladder keeps climbing.</p>
-      <table class="roadmap">
-        <tr><th>Tier</th><th>What you get</th><th>Status</th></tr>
-        <tr><td>Tier 4</td><td>Illustrated / motion-comic edition, cut on the per-line timing track</td><td>Near-term</td></tr>
-        <tr><td>Tier 5</td><td>Animated episodes with lip-synced dialogue</td><td>Roadmap</td></tr>
-        <tr><td>Tier 6</td><td>Full screen adaptation — manuscript in, film out</td><td>Vision</td></tr>
-      </table>
-    </div>
-  </section>
-
-  <footer>
-    <div class="wrap">
-      <p><strong>Volcano Studios</strong> · <a href="https://github.com/VolcanoHQ">github.com/VolcanoHQ</a> · <a href="https://github.com/VolcanoHQ/caldera-engine">The Caldera Engine repository</a></p>
-    </div>
-  </footer>
+    <footer>
+        <div class="wrap">
+            <p><strong>Volcano Studios</strong> · <a href="https://github.com/VolcanoHQ">github.com/VolcanoHQ</a> · <a href="https://github.com/VolcanoHQ/caldera-engine">The Caldera Engine repository</a></p>
+        </div>
+    </footer>
 
 </body>
+
 </html>
