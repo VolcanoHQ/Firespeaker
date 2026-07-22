@@ -21,6 +21,15 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.hierarchical_parser import HierarchicalParser
 from src.manuscript_profiler import ManuscriptProfiler
+from src.book_structure_adapter import load_line_payloads, load_structure, structure_to_gui_hierarchy
+from src.upload_contract import (
+    UploadContractError,
+    error_response,
+    http_status_for_error,
+    process_upload,
+    request_from_json,
+    success_response,
+)
 
 import collections
 
@@ -67,6 +76,15 @@ def _manifest_to_gui_hierarchy(manifest):
     """Adapt the Tier 1 manifest to the hierarchy schema used by the review GUI."""
     parts = []
     all_characters = set()
+    book_stem = os.path.splitext(os.path.basename(manifest.source_file))[0]
+    structure_path = os.path.join("data/corpus/pipeline", book_stem, "tier1", "book_structure.json")
+    structure_version = None
+    if os.path.exists(structure_path):
+        try:
+            with open(structure_path, "r", encoding="utf-8") as handle:
+                structure_version = json.load(handle).get("structure_version")
+        except Exception as e:
+            logger.warning(f"Could not read canonical book structure for {book_stem}: {e}")
 
     for part_index, part in enumerate(manifest.parts, 1):
         chapters = []
@@ -124,19 +142,63 @@ def _manifest_to_gui_hierarchy(manifest):
             "global_characters": ["Narrator", *sorted(all_characters)],
             "merge_decisions": [],
             "analysis_pipeline": TIER1_GUI_PIPELINE,
+            "book_structure_version": structure_version,
         },
         "parts": parts,
     }
 
 
 def build_gui_hierarchy(filepath: str, tier: int):
-    """Build hierarchy data using the canonical parser for the selected tier."""
-    if int(tier) == 1:
+    """Build hierarchy data using canonical book structure for Tier 1 reads."""
+    if int(tier) == 1 or filepath.lower().endswith((".docx", ".epub")):
+        book = os.path.splitext(os.path.basename(filepath))[0]
+        pipeline_dir = os.path.join("data", "corpus", "pipeline", book, "tier1")
+        structure_path = os.path.join(pipeline_dir, "book_structure.json")
+        if os.path.exists(structure_path) or os.path.isdir(pipeline_dir):
+            try:
+                structure = load_structure(
+                    book,
+                    source_file=filepath,
+                    source_format=os.path.splitext(filepath)[1].lstrip(".").lower() or "txt",
+                )
+                line_payloads = load_line_payloads(book)
+                if line_payloads:
+                    return structure_to_gui_hierarchy(structure, line_payloads=line_payloads, analysis_pipeline=TIER1_GUI_PIPELINE)
+            except Exception as e:
+                logger.warning(f"Canonical structure load failed for {book}; falling back to Tier 1 manifest: {e}")
         from src.tier_1_parser import ingest_manuscript_tier_1
-        return _manifest_to_gui_hierarchy(ingest_manuscript_tier_1(filepath))
+        manifest = ingest_manuscript_tier_1(filepath)
+        try:
+            structure = load_structure(
+                book,
+                source_file=filepath,
+                source_format=os.path.splitext(filepath)[1].lstrip(".").lower() or "txt",
+            )
+            line_payloads = load_line_payloads(book)
+            if line_payloads:
+                return structure_to_gui_hierarchy(structure, line_payloads=line_payloads, analysis_pipeline=TIER1_GUI_PIPELINE)
+        except Exception:
+            pass
+        return _manifest_to_gui_hierarchy(manifest)
 
     parser = HierarchicalParser(use_gpu=False, production_tier=int(tier))
     return parser.parse_hierarchy(filepath)
+
+
+def resolve_manuscript_path(filename: str):
+    if not filename or "/" in filename or "\\" in filename:
+        return None
+    from src import render_job
+
+    for root in render_job.CORPUS_ROOTS:
+        candidate = os.path.join(root, filename)
+        if os.path.exists(candidate):
+            return candidate
+
+    stem, ext = os.path.splitext(filename)
+    if ext:
+        return None
+    return render_job.find_source(stem)
 
 
 # Global non-blocking pipeline compilation state
@@ -156,7 +218,9 @@ def bg_run_pipeline(filename: str, tier: int = 1, user_tier: str = "free"):
     global PIPELINE_STATUS
     try:
         from src.main import CalderaPipeline
-        filepath = os.path.join("data/corpus", filename)
+        filepath = resolve_manuscript_path(filename)
+        if not filepath:
+            raise FileNotFoundError(f"Manuscript not found: {filename}")
         
         logger.info(f"[BG Compiler] Initializing pipeline run for {filename} (Tier {tier}, User Tier {user_tier})...")
         PIPELINE_STATUS["status"] = "running"
@@ -557,6 +621,26 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
                 payload = console_api.book_tree(q("name"))
             elif path == "/api/console/scene":
                 payload = console_api.scene_detail(q("book"), q("scene"))
+            elif path == "/api/console/structure":
+                payload = console_api.get_book_structure(q("book"))
+                if payload is None:
+                    self.send_json_error(400, "Invalid or unknown book")
+                    return
+            elif path == "/api/console/director_cast":
+                payload = console_api.director_cast_roster(q("book"), limit=int(q("limit") or "3"))
+                if payload is None:
+                    self.send_json_error(400, "Invalid or unknown book")
+                    return
+            elif path == "/api/console/director_voice_search":
+                payload = console_api.director_search_voices(
+                    q("book"),
+                    q("character"),
+                    query=q("q"),
+                    limit=int(q("limit") or "5"),
+                )
+                if payload is None:
+                    self.send_json_error(400, "Invalid book or character")
+                    return
             elif path == "/api/console/progress":
                 payload = console_api.progress()
             elif path == "/api/console/trailer_scene":
@@ -676,7 +760,7 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
             return
         if not self._auth_gate(path):
             return
-        if path.startswith("/api/marketplace/") or path.startswith("/api/voicestudio/") or path in ("/api/console/correct_speaker", "/api/console/preview_tier", "/api/console/render", "/api/console/projects", "/api/console/project_update", "/api/console/mix_override", "/api/console/omit_scene", "/api/console/upload_source", "/api/console/delete_book"):
+        if path.startswith("/api/marketplace/") or path.startswith("/api/voicestudio/") or path in ("/api/console/correct_speaker", "/api/console/preview_tier", "/api/console/render", "/api/console/projects", "/api/console/project_update", "/api/console/mix_override", "/api/console/omit_scene", "/api/console/upload_source", "/api/console/delete_book", "/api/console/structure_edit", "/api/console/structure_refresh", "/api/console/director_refresh", "/api/console/director_cast_character"):
             try:
                 content_length = int(self.headers.get('Content-Length') or 0)
                 body = json.loads(self.rfile.read(content_length).decode('utf-8')) if content_length else {}
@@ -769,25 +853,18 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
                     self.send_json_error(500, f"Delete error: {e}")
             elif path == "/api/console/upload_source":
                 try:
-                    filename = os.path.basename(body.get("filename") or "")
-                    data_url = body.get("data") or ""
-                    stem, ext = os.path.splitext(filename)
-                    stem = re.sub(r"[^A-Za-z0-9_\- ]", "", stem).strip()
-                    if ext.lower() not in (".txt", ".epub") or not stem or "," not in data_url:
-                        self.send_json_error(400, "Need filename (.txt or .epub) and data (dataURL)")
-                        return
-                    import base64
-                    raw = base64.b64decode(data_url.split(",", 1)[1])
-                    if len(raw) > 80 * 1024 * 1024:
-                        self.send_json_error(413, "File too large (80MB cap)")
-                        return
-                    os.makedirs("data/uploads", exist_ok=True)
-                    dest = os.path.join("data/uploads", stem + ext.lower())
-                    with open(dest, "wb") as f:
-                        f.write(raw)
-                    logger.info(f"Source uploaded: {dest} ({len(raw)} bytes)")
-                    resp = json.dumps({"book": stem, "path": dest, "bytes": len(raw)}).encode("utf-8")
+                    result = process_upload(request_from_json(body, surface="console"))
+                    logger.info(f"Source uploaded: {result.source_file} ({result.bytes} bytes)")
+                    resp = json.dumps(success_response(result)).encode("utf-8")
                     self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(resp)))
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.end_headers()
+                    self.wfile.write(resp)
+                except UploadContractError as e:
+                    resp = json.dumps(error_response(e.error)).encode("utf-8")
+                    self.send_response(http_status_for_error(e.error))
                     self.send_header("Content-Type", "application/json")
                     self.send_header("Content-Length", str(len(resp)))
                     self.send_header("Access-Control-Allow-Origin", "*")
@@ -876,6 +953,86 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
                 except Exception as e:
                     logger.error(f"correct_speaker error: {e}")
                     self.send_json_error(500, f"Override error: {e}")
+            elif path == "/api/console/structure_edit":
+                from src import console_api
+                try:
+                    result = console_api.apply_structure_edit(body.get("book", ""), body.get("action", ""), body)
+                    if result is None:
+                        self.send_json_error(400, "Invalid or unknown book")
+                        return
+                    resp = json.dumps(result).encode("utf-8")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(resp)))
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.end_headers()
+                    self.wfile.write(resp)
+                except Exception as e:
+                    logger.error(f"structure_edit error: {e}")
+                    self.send_json_error(409, f"Structure edit error: {e}")
+            elif path == "/api/console/structure_refresh":
+                from src import console_api
+                try:
+                    result = console_api.refresh_book_structure(body.get("book", ""))
+                    if result is None:
+                        self.send_json_error(400, "Invalid or unknown book")
+                        return
+                    resp = json.dumps(result).encode("utf-8")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(resp)))
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.end_headers()
+                    self.wfile.write(resp)
+                except Exception as e:
+                    logger.error(f"structure_refresh error: {e}")
+                    self.send_json_error(409, f"Structure refresh error: {e}")
+            elif path == "/api/console/director_refresh":
+                from src import console_api
+                try:
+                    result = console_api.refresh_book_director(
+                        body.get("book", ""),
+                        refresh_structure=bool(body.get("refresh_structure")),
+                        include_qc=bool(body.get("include_qc")),
+                        sync_mempalace=bool(body.get("sync_mempalace")),
+                    )
+                    if result is None:
+                        self.send_json_error(400, "Invalid or unknown book")
+                        return
+                    resp = json.dumps(result).encode("utf-8")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(resp)))
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.end_headers()
+                    self.wfile.write(resp)
+                except Exception as e:
+                    logger.error(f"director_refresh error: {e}")
+                    self.send_json_error(409, f"Director refresh error: {e}")
+            elif path == "/api/console/director_cast_character":
+                from src import console_api
+                try:
+                    result = console_api.director_cast_character(
+                        body.get("book", ""),
+                        body.get("character", ""),
+                        description=body.get("description", ""),
+                        buyer=body.get("buyer", self._owner()),
+                        purpose=body.get("purpose", "audiobook production"),
+                        voice_id=body.get("voice_id", ""),
+                    )
+                    if result is None:
+                        self.send_json_error(400, "Invalid book or character")
+                        return
+                    resp = json.dumps(result).encode("utf-8")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(resp)))
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.end_headers()
+                    self.wfile.write(resp)
+                except Exception as e:
+                    logger.error(f"director_cast_character error: {e}")
+                    self.send_json_error(409, f"Director cast error: {e}")
             else:
                 self.handle_voicestudio(path, parsed_url.query, body=body)
         elif path == "/api/analyze":
@@ -933,11 +1090,15 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
 
     def handle_get_books(self):
         try:
-            corpus_dir = "data/corpus"
-            if not os.path.exists(corpus_dir):
-                os.makedirs(corpus_dir, exist_ok=True)
-            files = [f for f in os.listdir(corpus_dir) if f.endswith(".txt")]
-            files.sort()
+            from src import render_job
+
+            files = set()
+            for root in render_job.CORPUS_ROOTS:
+                os.makedirs(root, exist_ok=True)
+                for name in os.listdir(root):
+                    if name.endswith(render_job.SOURCE_EXTS):
+                        files.add(name)
+            files = sorted(files)
             
             response = json.dumps({"books": files}).encode("utf-8")
             self.send_response(200)
@@ -1080,9 +1241,9 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
                 self.send_json_error(400, "Missing filename parameter")
                 return
                 
-            filepath = os.path.join("data/corpus", filename)
-            if not os.path.exists(filepath):
-                self.send_json_error(404, f"Book not found in corpus: {filename}")
+            filepath = resolve_manuscript_path(filename)
+            if not filepath or not os.path.exists(filepath):
+                self.send_json_error(404, f"Book not found: {filename}")
                 return
                 
             # Sanitize book name slug
@@ -1105,6 +1266,19 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
                 cache_is_current = int(tier) != 1 or (
                     cached_hierarchy.get("metadata", {}).get("analysis_pipeline") == TIER1_GUI_PIPELINE
                 )
+                if cache_is_current and (int(tier) == 1 or filepath.lower().endswith((".docx", ".epub"))):
+                    try:
+                        structure = load_structure(
+                            base_name,
+                            source_file=filepath,
+                            source_format=os.path.splitext(filepath)[1].lstrip(".").lower() or "txt",
+                        )
+                        cache_is_current = (
+                            cached_hierarchy.get("metadata", {}).get("book_structure_version")
+                            == structure.structure_version
+                        )
+                    except Exception:
+                        cache_is_current = False
 
             if cache_is_current:
                 logger.info(f"Retrieving cached profiling metrics for: {filename} (Tier {tier})")
@@ -1146,85 +1320,21 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
             content_length = int(self.headers['Content-Length'])
             post_data = self.rfile.read(content_length)
             params = json.loads(post_data.decode('utf-8'))
-            
-            filename = params.get("filename")
-            text = params.get("text")
             tier = params.get("tier", 1)
-            
-            if not filename or not text:
-                self.send_json_error(400, "Missing filename or text parameter")
-                return
-                
-            if text.startswith("data:"):
-                import base64
-                header, encoded = text.split(",", 1)
-                file_bytes = base64.b64decode(encoded)
-                # EPUBs are binary ZIP containers: decoding them as text produced
-                # the measured "completely scrambled" upload. Save the raw bytes
-                # with their .epub identity intact -- the spine-aware ingestion
-                # (nlp_engine/epub_ingestion.py) takes over at render time.
-                if filename.lower().endswith(".epub") or "epub+zip" in header:
-                    stem = re.sub(r"[^A-Za-z0-9_\- ]", "", os.path.splitext(os.path.basename(filename))[0]).strip() or "uploaded_book"
-                    os.makedirs("data/uploads", exist_ok=True)
-                    epub_path = os.path.join("data/uploads", stem + ".epub")
-                    with open(epub_path, "wb") as f:
-                        f.write(file_bytes)
-                    logger.info(f"EPUB uploaded (binary-safe): {epub_path} ({len(file_bytes)} bytes)")
-                    resp = json.dumps({"book": stem, "format": "epub", "path": epub_path,
-                                       "note": "EPUB saved; generate from the console to ingest via the spine."}).encode("utf-8")
-                    self.send_response(200)
-                    self.send_header("Content-Type", "application/json")
-                    self.send_header("Content-Length", str(len(resp)))
-                    self.send_header("Access-Control-Allow-Origin", "*")
-                    self.end_headers()
-                    self.wfile.write(resp)
-                    return
-                if "wordprocessingml" in header or filename.endswith(".docx"):
-                    import zipfile
-                    import xml.etree.ElementTree as ET
-                    import io
-                    try:
-                        with zipfile.ZipFile(io.BytesIO(file_bytes)) as docx:
-                            xml_content = docx.read('word/document.xml')
-                            root = ET.fromstring(xml_content)
-                            ns = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
-                            paragraphs = []
-                            for para in root.findall('.//w:p', ns):
-                                text_runs = para.findall('.//w:t', ns)
-                                t_text = "".join([t.text for t in text_runs if t.text])
-                                if t_text:
-                                    paragraphs.append(t_text)
-                            text = "\n\n".join(paragraphs)
-                    except Exception as e:
-                        logger.error(f"Docx parsing failed: {e}")
-                        self.send_json_error(400, f"Failed to parse .docx file: {str(e)}")
-                        return
-                else:
-                    try:
-                        text = file_bytes.decode('utf-8')
-                    except Exception:
-                        text = file_bytes.decode('latin-1', errors='ignore')
+            upload_request = request_from_json(params, surface="studio")
+            result = process_upload(upload_request)
+            filepath = result.source_file
 
-            filename = os.path.basename(filename)
-            name_part, ext_part = os.path.splitext(filename)
-            filename = name_part + ".txt"
-                
-            filepath = os.path.join("data/corpus", filename)
-            os.makedirs(os.path.dirname(filepath), exist_ok=True)
-            
-            with open(filepath, "w", encoding="utf-8") as f:
-                f.write(text)
-                
             logger.info(f"Custom book saved successfully to: {filepath}")
-            
-            # Analyze immediately
+
+            # Analyze immediately through the canonical upload contract/Tier 1 path.
             profiler = ManuscriptProfiler(use_gpu=False, production_tier=int(tier))
-            
-            hierarchy_data = build_gui_hierarchy(filepath, int(tier))
+            hierarchy_data = build_gui_hierarchy(filepath, 1)
             profile_data = profiler.profile_book(filepath, hierarchy_data=hierarchy_data)
             
             # Save cache
             pass  # re is imported at module level
+            filename = result.filename
             base_name = os.path.splitext(filename)[0]
             slug = re.sub(r'[^a-zA-Z0-9_\-]', '', base_name)
             
@@ -1236,10 +1346,9 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
                 json.dump(hierarchy_data, f, indent=4)
             profiler.save_profile(profile_data, profile_cache)
             
-            response_data = {
-                "profile": profile_data,
-                "hierarchy": hierarchy_data
-            }
+            response_data = success_response(result)
+            response_data["profile"] = profile_data
+            response_data["hierarchy"] = hierarchy_data
             
             response = json.dumps(response_data).encode("utf-8")
             self.send_response(200)
@@ -1248,7 +1357,14 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
             self.wfile.write(response)
-            
+        except UploadContractError as e:
+            payload = json.dumps(error_response(e.error)).encode("utf-8")
+            self.send_response(http_status_for_error(e.error))
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(payload)
         except Exception as e:
             logger.error(f"Error handling file upload: {e}", exc_info=True)
             self.send_json_error(500, f"Upload and analysis failed: {str(e)}")
@@ -1268,9 +1384,9 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
                 self.send_json_error(400, "Missing required parameters: filename, original_name, canonical_name, is_confirmed")
                 return
                 
-            filepath = os.path.join("data/corpus", filename)
-            if not os.path.exists(filepath):
-                self.send_json_error(404, f"Book not found in corpus: {filename}")
+            filepath = resolve_manuscript_path(filename)
+            if not filepath or not os.path.exists(filepath):
+                self.send_json_error(404, f"Book not found: {filename}")
                 return
                 
             # 1. Connect to MemPalace database and save decision
@@ -1400,9 +1516,9 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
                 self.send_json_error(400, "Missing required parameters: filename, original_name, new_name, voice_ref_path")
                 return
                 
-            filepath = os.path.join("data/corpus", filename)
+            filepath = resolve_manuscript_path(filename)
             if not os.path.exists(filepath):
-                self.send_json_error(404, f"Book not found in corpus: {filename}")
+                self.send_json_error(404, f"Book not found: {filename}")
                 return
                 
             # 1. Connect to MemPalace database
@@ -1663,7 +1779,10 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
                     
             # Re-profile with ManuscriptProfiler using the updated hierarchy structure to keep metrics accurate
             profiler = ManuscriptProfiler(use_gpu=False)
-            filepath = os.path.join("data/corpus", filename)
+            filepath = resolve_manuscript_path(filename)
+            if not filepath:
+                self.send_json_error(404, f"Book not found: {filename}")
+                return
             profile_data = profiler.profile_book(filepath, hierarchy_data=hierarchy_data)
             profiler.save_profile(profile_data, profile_cache)
             
@@ -1951,7 +2070,10 @@ class StudioRequestHandler(BaseHTTPRequestHandler):
                 
             # Re-profile to keep metrics in sync
             profiler = ManuscriptProfiler(use_gpu=False, production_tier=int(tier))
-            filepath = os.path.join("data/corpus", filename)
+            filepath = resolve_manuscript_path(filename)
+            if not filepath:
+                self.send_json_error(404, f"Book not found: {filename}")
+                return
             profile_data = profiler.profile_book(filepath, hierarchy_data=hierarchy_data)
             profiler.save_profile(profile_data, profile_cache)
             

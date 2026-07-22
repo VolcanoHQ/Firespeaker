@@ -160,6 +160,22 @@ class VoiceMarketplace:
             
         return hits
 
+    def get_listing(self, voice_id: str) -> Optional[Dict[str, Any]]:
+        points = self.client.retrieve(collection_name="voice_marketplace", ids=[voice_id])
+        if not points:
+            return None
+        payload = points[0].payload
+        return {
+            "voice_id": voice_id,
+            "voice_name": payload.get("voice_name"),
+            "voice_ref_path": payload.get("voice_ref_path"),
+            "description": payload.get("description"),
+            "seller": payload.get("seller"),
+            "seller_id": payload.get("seller_id"),
+            "price_usd": payload.get("price_usd", 0.0),
+            "consent_confirmed": payload.get("consent_confirmed", False),
+        }
+
     # ----------------------------------------------------
     # Seller onboarding: raw voice acting -> validated, licensed listing
     # ----------------------------------------------------
@@ -288,6 +304,27 @@ class VoiceMarketplace:
             logger.warning(f"No castable marketplace voice found for '{character_name}' ({character_description[:50]!r})")
             return None
         best = hits[0]
+        return self.cast_character_with_voice(
+            character_name=character_name,
+            voice_id=best["voice_id"],
+            buyer=buyer,
+            purpose=purpose or f"cast as {character_name}",
+            preselected_voice=best,
+        )
+
+    def cast_character_with_voice(
+        self,
+        character_name: str,
+        voice_id: str,
+        buyer: str = "local",
+        purpose: str = "",
+        preselected_voice: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        best = preselected_voice or self.get_listing(voice_id)
+        if not best:
+            raise ValueError(f"No such voice listing: {voice_id}")
+        if not os.path.exists(best.get("voice_ref_path") or ""):
+            raise ValueError(f"Voice reference path missing for listing: {voice_id}")
         license_record = self.purchase_voice(best["voice_id"], buyer=buyer, purpose=purpose or f"cast as {character_name}")
 
         from src.spatial_memory import MemPalace

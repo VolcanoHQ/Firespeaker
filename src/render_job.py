@@ -34,7 +34,7 @@ logger = logging.getLogger("RenderJob")
 JOBS_DIR = "data/render_jobs"
 RENDERS_DIR = "scratch/renders"
 CORPUS_ROOTS = ("data/corpus", "data/uploads")
-SOURCE_EXTS = (".txt", ".epub")
+SOURCE_EXTS = (".txt", ".docx", ".epub")
 
 
 def _job_path(job_id: str) -> str:
@@ -106,6 +106,19 @@ def start_render(book: str, tier: int, owner: str = "local",
     source = find_source(book)
     if not source:
         return {"status": "failed", "error": f"No manuscript named '{book}' under {CORPUS_ROOTS}"}
+    tier1_dir = os.path.join("data", "corpus", "pipeline", book, "tier1")
+    canonical_path = os.path.join(tier1_dir, "book_structure.json")
+    if os.path.exists(canonical_path):
+        try:
+            from src.book_structure_adapter import load_structure, require_structure_readiness
+            structure = load_structure(
+                book,
+                source_file=source,
+                source_format=os.path.splitext(source)[1].lstrip(".").lower() or "txt",
+            )
+            require_structure_readiness(structure, require_analysis=True, operation="render")
+        except Exception as e:
+            return {"status": "failed", "error": str(e)}
     running = [j for j in list_jobs(book) if j.get("status") in ("queued", "running")]
     if running:
         return {"status": "failed", "error": f"A render for '{book}' is already {running[0]['status']} "
@@ -159,12 +172,34 @@ def run_job(job_id: str) -> int:
         set_usage_context(book=job["book"], owner=job.get("owner"),
                           project_id=job.get("project_id"), plan=plan)
         from src.tier_1_parser import ingest_manuscript_tier_1
-        tier = job["tier"]
-        manifest = ingest_manuscript_tier_1(
-            job["source_file"],
-            enable_llm_enrichment=(tier >= 2),
-            resume_enrichment=(tier >= 2),
+        from src.book_structure_adapter import (
+            load_line_payloads,
+            load_structure,
+            require_structure_readiness,
+            structure_to_manifest,
         )
+        tier = job["tier"]
+        canonical_path = os.path.join("data", "corpus", "pipeline", job["book"], "tier1", "book_structure.json")
+        if os.path.exists(canonical_path):
+            structure = load_structure(
+                job["book"],
+                source_file=job["source_file"],
+                source_format=os.path.splitext(job["source_file"])[1].lstrip(".").lower() or "txt",
+            )
+            require_structure_readiness(structure, require_analysis=True, operation="render")
+            line_payloads = load_line_payloads(job["book"])
+            if not line_payloads:
+                raise ValueError(
+                    f"Canonical structure exists for {job['book']} but no Tier 1 line artifacts are available "
+                    "to render its current structure."
+                )
+            manifest = structure_to_manifest(structure, line_payloads=line_payloads)
+        else:
+            manifest = ingest_manuscript_tier_1(
+                job["source_file"],
+                enable_llm_enrichment=(tier >= 2),
+                resume_enrichment=(tier >= 2),
+            )
         manifest_path = os.path.join(RENDERS_DIR, f"{job['book']}_manifest.json")
         with open(manifest_path, "w", encoding="utf-8") as f:
             f.write(manifest.model_dump_json(indent=2))

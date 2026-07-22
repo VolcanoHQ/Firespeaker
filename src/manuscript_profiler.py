@@ -12,8 +12,10 @@ import os
 import sys
 import json
 import logging
+import zipfile
 from collections import defaultdict
 from typing import Dict, Any
+from xml.etree import ElementTree as ET
 
 # Ensure the root project directory is in the sys.path for absolute modular imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -26,6 +28,21 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger("ManuscriptProfiler")
+
+_DOCX_NS = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+
+
+def _docx_to_text(path: str) -> str:
+    with zipfile.ZipFile(path) as docx:
+        xml_content = docx.read("word/document.xml")
+    root = ET.fromstring(xml_content)
+    paragraphs = []
+    for para in root.findall(".//w:p", _DOCX_NS):
+        text_runs = para.findall(".//w:t", _DOCX_NS)
+        para_text = "".join(node.text for node in text_runs if node.text)
+        if para_text:
+            paragraphs.append(para_text)
+    return "\n\n".join(paragraphs)
 
 
 class ManuscriptProfiler:
@@ -44,8 +61,14 @@ class ManuscriptProfiler:
         logger.info(f"Profiling manuscript: {manuscript_path}...")
         
         # 1. Read raw file metrics
-        with open(manuscript_path, "r", encoding="utf-8") as f:
-            raw_text = f.read()
+        if manuscript_path.lower().endswith(".epub"):
+            from nlp_engine.epub_ingestion import epub_to_text
+            raw_text = epub_to_text(manuscript_path)
+        elif manuscript_path.lower().endswith(".docx"):
+            raw_text = _docx_to_text(manuscript_path)
+        else:
+            with open(manuscript_path, "r", encoding="utf-8") as f:
+                raw_text = f.read()
             
         file_size_bytes = os.path.getsize(manuscript_path)
         char_count = len(raw_text)

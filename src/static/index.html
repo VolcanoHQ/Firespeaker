@@ -917,7 +917,7 @@
                                 <option value="" disabled selected>Select a Manuscript...</option>
                             </select>
                             <button class="btn-upload" onclick="document.getElementById('directFileInput').click()">Upload File</button>
-                            <input type="file" id="directFileInput" accept=".txt,.docx" style="display: none;" onchange="handleDirectFileSelect(this)">
+                            <input type="file" id="directFileInput" accept=".txt,text/plain,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.epub,application/epub+zip" style="display: none;" onchange="handleDirectFileSelect(this)">
                         </div>
                         <div style="margin-top: 6px; font-size: 12px; text-align: right;">
                             <span style="color: var(--text-muted);">or </span>
@@ -1281,8 +1281,8 @@
                     ondrop="handleDropZone(event)">
                     <div style="font-size: 40px; margin-bottom: 12px;">📁</div>
                     <strong style="color: var(--text-main); font-size: 14.5px;">Drag & Drop File Here</strong>
-                    <span style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">Supports .txt, .docx files</span>
-                    <button class="btn-upload" style="margin-top: 20px; font-size: 12.5px; padding: 8px 16px;" onclick="document.getElementById('directFileInput').click()">Browse Files</button>
+                    <span style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">Supports .txt, .docx, .epub files</span>
+                    <button class="btn-upload" style="margin-top: 20px; font-size: 12.5px; padding: 8px 16px;" onclick="document.getElementById('directFileInput').click()">Browse Files (.txt, .docx, .epub)</button>
                 </div>
 
                 <!-- Separator line -->
@@ -1295,7 +1295,7 @@
                 <!-- Right side: Paste Text -->
                 <div style="flex: 1.2; min-width: 300px; display: flex; flex-direction: column; gap: 16px;">
                     <div class="input-group" style="margin-bottom: 0;">
-                        <label for="uploadTitle">Manuscript Filename (e.g. MyBook.txt)</label>
+                        <label for="uploadTitle">Manuscript Filename (e.g. MyBook.txt, MyBook.docx, MyBook.epub)</label>
                         <input type="text" id="uploadTitle" placeholder="custom_manuscript.txt" style="width: 100%; box-sizing: border-box;">
                     </div>
                     <div class="input-group" style="margin-bottom: 0; flex-grow: 1;">
@@ -3870,7 +3870,7 @@
 
                 if (!response.ok) {
                     const err = await response.json();
-                    throw new Error(err.error || "Upload failed");
+                    throw new Error((err.error && err.error.message) || err.error || "Upload failed");
                 }
 
                 const data = await response.json();
@@ -3890,7 +3890,7 @@
                 initEditorVirtualList();
 
                 await fetchBooks();
-                document.getElementById("bookSelect").value = filename.endsWith(".txt") ? filename : `${filename}.txt`;
+                document.getElementById("bookSelect").value = data.filename || filename;
 
                 document.getElementById("workspacePlaceholder").style.display = "none";
                 document.getElementById("btnProcessManuscript").style.display = "inline-flex";
@@ -3942,13 +3942,14 @@
                         body: JSON.stringify({
                             filename: filename,
                             text: contents,
+                            content_type: file.type || null,
                             tier: parseInt(selectedTier)
                         })
                     });
 
                     if (!response.ok) {
                         const err = await response.json();
-                        throw new Error(err.error || "Upload failed");
+                        throw new Error((err.error && err.error.message) || err.error || "Upload failed");
                     }
 
                     const data = await response.json();
@@ -3970,7 +3971,7 @@
                     await fetchBooks();
                     const select = document.getElementById("bookSelect");
                     if (select) {
-                        select.value = filename.endsWith(".txt") ? filename : `${filename}.txt`;
+                        select.value = data.filename || filename;
                     }
 
                     document.getElementById("workspacePlaceholder").style.display = "none";
@@ -4002,7 +4003,7 @@
             if (file.name.endsWith(".docx")) {
                 reader.readAsDataURL(file);
             } else {
-                reader.readAsText(file);
+                reader.readAsDataURL(file);
             }
         }
 

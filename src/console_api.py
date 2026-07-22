@@ -14,12 +14,41 @@ import json
 import logging
 import os
 import re
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+
+from src.book_structure import (
+    SplitSectionSpec,
+    change_content_type,
+    remove_section,
+    rename_section,
+    reorder_section,
+    merge_sections,
+    save_book_structure,
+    split_section,
+)
+from src.book_structure_adapter import (
+    chapter_lookup,
+    load_line_payloads as adapter_load_line_payloads,
+    load_structure,
+    ordered_chapters,
+    ordered_parts,
+    ordered_scene_ids,
+    ordered_scenes,
+    resolve_scene,
+    scene_lines,
+    scene_text as structure_scene_text,
+    structure_readiness,
+    structure_to_console_tree,
+    structure_to_gui_hierarchy,
+    structure_to_manifest,
+)
 
 logger = logging.getLogger("ConsoleAPI")
 
 PIPELINE_ROOT = "data/corpus/pipeline"
 PROGRESS_FILE = "data/analysis_progress.json"
+_MARKETPLACE = None
 
 # Directories audio audition may serve from (path-traversal guard).
 AUDIO_WHITELIST = (
@@ -50,6 +79,10 @@ def _tier3_dir(book: str) -> str:
     return os.path.join(PIPELINE_ROOT, book, "tier3")
 
 
+def _book_structure_path(book: str) -> str:
+    return os.path.join(_tier1_dir(book), "book_structure.json")
+
+
 def _safe_book(book: str) -> Optional[str]:
     """Book names are directory names under PIPELINE_ROOT -- nothing else."""
     if not book or book in (".", "..") or "/" in book or "\\" in book:
@@ -68,6 +101,316 @@ def _load_lines(book: str) -> List[Dict[str, Any]]:
     return data
 
 
+def _get_marketplace():
+    global _MARKETPLACE
+    if _MARKETPLACE is None:
+        from src.voice_marketplace import VoiceMarketplace
+        _MARKETPLACE = VoiceMarketplace()
+    return _MARKETPLACE
+
+
+def _get_drawer_info(character: str) -> Optional[Dict[str, Any]]:
+    from src.spatial_memory import MemPalace
+
+    palace = MemPalace(use_chroma=False)
+    try:
+        return palace.get_character_drawer(character)
+    finally:
+        palace.close()
+
+
+def _character_profiles(book: str) -> Dict[str, Dict[str, Any]]:
+    profiles = _load_json(os.path.join(_tier3_dir(book), "character_profiles.json")) or []
+    return {
+        item.get("name", ""): item
+        for item in profiles
+        if isinstance(item, dict) and item.get("name")
+    }
+
+
+def _character_voice_query(book: str, character: str, explicit_query: str = "") -> str:
+    if explicit_query.strip():
+        return explicit_query.strip()
+    profile = _character_profiles(book).get(character, {})
+    profile_description = str(profile.get("visual_description") or profile.get("description") or "").strip()
+    if profile_description:
+        return f"{character}: {profile_description}"
+    return f"{character} audiobook character voice"
+
+
+def _write_json(path: str, payload: Any) -> str:
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = f"{path}.tmp"
+    with open(tmp, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2)
+    os.replace(tmp, path)
+    return path
+
+
+def _resolve_source_path(book: str, source_hint: str = "") -> Optional[str]:
+    from src import render_job
+
+    source = render_job.find_source(book)
+    if source:
+        return source
+    if source_hint and os.path.exists(source_hint):
+        return source_hint
+    if source_hint:
+        hinted = os.path.join("data", "uploads", os.path.basename(source_hint))
+        if os.path.exists(hinted):
+            return hinted
+    return None
+
+
+def _renumber_lines(lines: List[Dict[str, Any]], *, chapter_num: int, scene_num: int) -> List[Dict[str, Any]]:
+    from src.models import ScriptLine
+
+    renumbered = []
+    for line_number, line in enumerate(lines, 1):
+        line_copy = dict(line)
+        line_copy["chapter"] = chapter_num
+        line_copy["scene"] = scene_num
+        line_copy["line_number"] = line_number
+        renumbered.append(ScriptLine.model_validate(line_copy).model_dump())
+    return renumbered
+
+
+def _refresh_line_payloads(book: str, structure) -> List[Dict[str, Any]]:
+    from src.tier_1_parser import parse_tier_1_lines
+
+    existing_payloads = adapter_load_line_payloads(book)
+    existing_index = {payload.get("scene_id", ""): payload.get("lines", []) for payload in existing_payloads}
+    refreshed_payloads: List[Dict[str, Any]] = []
+    scene_counter = 0
+
+    for part_index, part in enumerate(ordered_parts(structure), 1):
+        for chapter_index, chapter in enumerate(ordered_chapters(structure, part), 1):
+            for scene in ordered_scenes(structure, chapter):
+                scene_counter += 1
+                scene_key = scene.legacy_id or scene.section_id
+                scene_body = structure_scene_text(scene, structure)
+                existing_lines = existing_index.get(scene_key)
+                if existing_lines:
+                    lines = _renumber_lines(existing_lines, chapter_num=chapter_index, scene_num=scene_counter)
+                else:
+                    lines = [
+                        line.model_dump()
+                        for line in parse_tier_1_lines(scene_body, part_index, chapter_index, scene_counter)
+                    ]
+                scene.metadata["text_block"] = scene_body
+                scene.metadata["source_chars"] = len(scene_body)
+                refreshed_payloads.append({"scene_id": scene_key, "lines": lines})
+
+    return refreshed_payloads
+
+
+def _mark_structure_analysis_refreshed(structure, line_payloads: List[Dict[str, Any]]):
+    updated = structure.model_copy(deep=True)
+    now = datetime.now(timezone.utc).isoformat()
+    payload_scene_ids = {payload.get("scene_id", "") for payload in line_payloads}
+    depth_by_id = {None: -1}
+
+    def _depth(section_id: str | None) -> int:
+        if section_id in depth_by_id:
+            return depth_by_id[section_id]
+        parent = next((section.parent_id for section in updated.sections if section.section_id == section_id), None)
+        depth_by_id[section_id] = _depth(parent) + 1
+        return depth_by_id[section_id]
+
+    for section in updated.sections:
+        if section.status != "active":
+            continue
+        if section.content_type == "scene":
+            scene_key = section.legacy_id or section.section_id
+            section.artifacts.analysis_valid = scene_key in payload_scene_ids
+            section.updated_at = now
+
+    active_sections = [section for section in updated.sections if section.status == "active"]
+    for section in sorted(active_sections, key=lambda item: _depth(item.section_id), reverse=True):
+        children = [child for child in active_sections if child.parent_id == section.section_id]
+        if children:
+            section.artifacts.analysis_valid = all(child.artifacts.analysis_valid for child in children)
+            section.updated_at = now
+
+    updated.updated_at = now
+    return updated
+
+
+def _invalidate_tier3_artifacts(book: str) -> List[str]:
+    tier3_dir = _tier3_dir(book)
+    cleared = []
+    for filename in (
+        "production_script.json",
+        "sound_design.json",
+        "dramatization.json",
+        "character_profiles.json",
+        "book_bible.json",
+    ):
+        path = os.path.join(tier3_dir, filename)
+        if os.path.exists(path):
+            os.remove(path)
+            cleared.append(path)
+    return cleared
+
+
+def get_book_structure(book: str) -> Optional[Dict[str, Any]]:
+    book = _safe_book(book)
+    if not book:
+        return None
+    structure = load_structure(book)
+    return {
+        "book": book,
+        "structure": structure.model_dump(),
+        "readiness": structure_readiness(structure, require_analysis=True),
+    }
+
+
+def apply_structure_edit(book: str, action: str, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    book = _safe_book(book)
+    if not book:
+        return None
+    structure = load_structure(book)
+    if action == "rename_section":
+        updated = rename_section(structure, payload.get("section_id", ""), str(payload.get("title", "")))
+    elif action == "reorder_section":
+        updated = reorder_section(structure, payload.get("section_id", ""), int(payload.get("order", 0)))
+    elif action == "remove_section":
+        updated = remove_section(structure, payload.get("section_id", ""))
+    elif action == "change_content_type":
+        updated = change_content_type(structure, payload.get("section_id", ""), str(payload.get("content_type", "")))
+    elif action == "merge_sections":
+        updated = merge_sections(
+            structure,
+            payload.get("section_ids", []),
+            title=payload.get("title"),
+            content_type=payload.get("content_type"),
+        )
+    elif action == "split_section":
+        specs = [SplitSectionSpec.model_validate(item) for item in payload.get("sections", [])]
+        updated = split_section(structure, payload.get("section_id", ""), specs)
+    else:
+        raise ValueError(f"Unknown structure action: {action}")
+
+    save_book_structure(updated, _book_structure_path(book))
+    return {
+        "book": book,
+        "action": action,
+        "structure": updated.model_dump(),
+        "readiness": structure_readiness(updated, require_analysis=True),
+    }
+
+
+def refresh_book_structure(book: str) -> Optional[Dict[str, Any]]:
+    book = _safe_book(book)
+    if not book:
+        return None
+    structure = load_structure(book)
+    source_path = _resolve_source_path(book, structure.source_file)
+    if not source_path:
+        raise FileNotFoundError(f"Could not locate source manuscript for '{book}'")
+
+    refreshed_payloads = _refresh_line_payloads(book, structure)
+    loop4_path = _write_json(os.path.join(_tier1_dir(book), "loop4_lines.json"), refreshed_payloads)
+    enriched_path = _write_json(os.path.join(_tier1_dir(book), "loop4_lines_enriched.json"), refreshed_payloads)
+    _write_json(os.path.join(_tier1_dir(book), "loopE_llm_cleancheck.json"), [])
+    _write_json(os.path.join(_tier1_dir(book), "loopE_llm_sfx_cues.json"), [])
+    _write_json(os.path.join(_tier1_dir(book), "loopE_llm_alias_merges.json"), [])
+
+    refreshed_structure = _mark_structure_analysis_refreshed(structure, refreshed_payloads)
+    save_book_structure(refreshed_structure, _book_structure_path(book))
+
+    hierarchy_data = structure_to_gui_hierarchy(refreshed_structure, line_payloads=refreshed_payloads)
+    slug = re.sub(r"[^a-zA-Z0-9_\-]", "", book)
+    cache_dir = os.path.join("data", "processed", slug, "Tier_1")
+    hierarchy_cache = _write_json(os.path.join(cache_dir, "hierarchy.json"), hierarchy_data)
+
+    from src.manuscript_profiler import ManuscriptProfiler
+
+    profiler = ManuscriptProfiler(use_gpu=False, production_tier=1)
+    profile_data = profiler.profile_book(source_path, hierarchy_data=hierarchy_data)
+    profile_cache = os.path.join(cache_dir, "profile.json")
+    profiler.save_profile(profile_data, profile_cache)
+    cleared_tier3 = _invalidate_tier3_artifacts(book)
+
+    return {
+        "book": book,
+        "structure": refreshed_structure.model_dump(),
+        "readiness": structure_readiness(refreshed_structure, require_analysis=True),
+        "hierarchy": hierarchy_data,
+        "profile": profile_data,
+        "artifacts": {
+            "loop4_lines": loop4_path,
+            "loop4_lines_enriched": enriched_path,
+            "hierarchy_cache": hierarchy_cache,
+            "profile_cache": profile_cache,
+            "cleared_tier3": cleared_tier3,
+        },
+    }
+
+
+def refresh_book_director(
+    book: str,
+    *,
+    refresh_structure: bool = False,
+    include_qc: bool = False,
+    sync_mempalace: bool = False,
+) -> Optional[Dict[str, Any]]:
+    book = _safe_book(book)
+    if not book:
+        return None
+
+    structure_refresh = refresh_book_structure(book) if refresh_structure else None
+    structure = load_structure(book)
+    readiness = structure_readiness(structure, require_analysis=True)
+    if not readiness["ok"]:
+        raise ValueError(
+            "Canonical structure is stale for scene direction. Refresh structure analysis before "
+            "rebuilding Tier 3 artifacts."
+        )
+
+    line_payloads = adapter_load_line_payloads(book)
+    if not line_payloads:
+        raise ValueError(f"No Tier 1 line artifacts are available for '{book}'")
+
+    manifest = structure_to_manifest(structure, line_payloads=line_payloads)
+    tier3_dir = _tier3_dir(book)
+    os.makedirs(tier3_dir, exist_ok=True)
+    manifest_path = _write_json(
+        os.path.join(tier3_dir, "canonical_manifest.json"),
+        manifest.model_dump(),
+    )
+
+    from src import scene_director
+
+    direction_result = scene_director.direct_manifest(manifest_path, sync_mempalace=sync_mempalace)
+    sound_design_path = scene_director.run_sound_design(manifest_path)
+    dramatization_path = scene_director.run_dramatization(manifest_path)
+    character_profiles_path = scene_director.run_character_design(
+        manifest_path,
+        sync_mempalace=sync_mempalace,
+    )
+    qc_report_path = scene_director.run_qc_review(manifest_path) if include_qc else None
+    if not include_qc:
+        stale_qc_path = os.path.join(tier3_dir, "qc_report.json")
+        if os.path.exists(stale_qc_path):
+            os.remove(stale_qc_path)
+
+    return {
+        "book": book,
+        "structure": structure.model_dump(),
+        "readiness": readiness,
+        "structure_refresh": structure_refresh,
+        "director": direction_result,
+        "artifacts": {
+            "manifest": manifest_path,
+            "sound_design": sound_design_path,
+            "dramatization": dramatization_path,
+            "character_profiles": character_profiles_path,
+            "qc_report": qc_report_path,
+        },
+    }
+
+
 def list_books() -> List[Dict[str, Any]]:
     """Every ingested book with an inventory of which artifacts exist."""
     books = []
@@ -77,10 +420,14 @@ def list_books() -> List[Dict[str, Any]]:
         t1, t3 = _tier1_dir(name), _tier3_dir(name)
         if not os.path.isdir(t1):
             continue
-        scenes = _load_json(os.path.join(t1, "loop3_scenes.json")) or []
+        try:
+            structure = load_structure(name)
+            scenes_count = len(ordered_scene_ids(structure))
+        except Exception:
+            scenes_count = len(_load_json(os.path.join(t1, "loop3_scenes.json")) or [])
         entry = {
             "book": name,
-            "scenes": len(scenes),
+            "scenes": scenes_count,
             "artifacts": {
                 "enriched": os.path.exists(os.path.join(t1, "loop4_lines_enriched.json")),
                 "alias_merges": os.path.exists(os.path.join(t1, "loopE_llm_alias_merges.json")),
@@ -123,64 +470,22 @@ def book_tree(book: str) -> Optional[Dict[str, Any]]:
     if not book:
         return None
     t1 = _tier1_dir(book)
-    parts = _load_json(os.path.join(t1, "loop1_parts.json")) or []
-    chapters = _load_json(os.path.join(t1, "loop2_chapters.json")) or []
-    scenes = _load_json(os.path.join(t1, "loop3_scenes.json")) or []
-    line_payloads = _load_lines(book)
-
-    stats_by_scene: Dict[str, Dict[str, Any]] = {}
-    for payload in line_payloads:
-        lines = payload.get("lines", [])
-        dialogue = [l for l in lines if l.get("segment_type") == "dialogue"]
-        enriched = [l for l in dialogue if str(l.get("attribution_method", "")) != "Tier 1 Default"]
-        reviewed = [l for l in dialogue if "+reviewed" in str(l.get("attribution_method", ""))]
-        speakers = sorted({l.get("character", "?") for l in dialogue} - {"Narrator"})
-        stats_by_scene[payload.get("scene_id", "")] = {
-            "lines": len(lines),
-            "dialogue": len(dialogue),
-            "enriched": len(enriched),
-            "reviewed": len(reviewed),
-            "speakers": speakers,
-        }
-
-    scene_overrides = load_scene_overrides(book)
-    scene_nodes: Dict[str, List[Dict[str, Any]]] = {}
-    for sc in scenes:
-        sid = sc.get("scene_id", "")
-        chap_key = sid.rsplit("_s", 1)[0] if "_s" in sid else ""
-        text = sc.get("text_block", "")
-        node = {
-            "scene_id": sid,
-            "omitted": bool(scene_overrides.get(sid, {}).get("omit")),
-            "boundary_source": sc.get("boundary_source", "regex"),
-            "chars": len(text),
-            "excerpt": " ".join(text[:140].split()),
-            **stats_by_scene.get(sid, {"lines": 0, "dialogue": 0, "enriched": 0, "reviewed": 0, "speakers": []}),
-        }
-        scene_nodes.setdefault(chap_key, []).append(node)
-
-    chapter_nodes: Dict[str, List[Dict[str, Any]]] = {}
-    for ch in chapters:
-        cid = ch.get("chapter_id", "")
-        part_key = cid.rsplit("_c", 1)[0] if "_c" in cid else ""
-        chapter_nodes.setdefault(part_key, []).append({
-            "chapter_id": cid,
-            "title": ch.get("title", cid),
-            "scenes": scene_nodes.get(cid, []),
-        })
-
-    tree = []
-    for p in parts:
-        pid = p.get("part_id", "")
-        tree.append({
-            "part_id": pid,
-            "title": p.get("title", pid),
-            "chapters": chapter_nodes.get(pid, []),
-        })
-
+    structure = load_structure(book)
+    line_payloads = adapter_load_line_payloads(book)
+    tree = structure_to_console_tree(
+        structure,
+        line_payloads=line_payloads,
+        scene_overrides=load_scene_overrides(book),
+    )
     merges = _load_json(os.path.join(t1, "loopE_llm_alias_merges.json")) or []
     bible = _load_json(os.path.join(_tier3_dir(book), "book_bible.json"))
-    return {"book": book, "parts": tree, "alias_merges": merges, "book_bible": bible}
+    structure_summary = {
+        "path": _book_structure_path(book),
+        "version": structure.structure_version,
+        "sections": len(structure.sections),
+        "updated_at": structure.updated_at,
+    }
+    return {"book": book, "parts": tree, "alias_merges": merges, "book_bible": bible, "book_structure": structure_summary}
 
 
 def _line_wav_path(line: Dict[str, Any]) -> Optional[str]:
@@ -201,13 +506,13 @@ def scene_detail(book: str, scene_id: str) -> Optional[Dict[str, Any]]:
     if not book or not re.fullmatch(r"[A-Za-z0-9_]+", scene_id or ""):
         return None
     t1, t3 = _tier1_dir(book), _tier3_dir(book)
-
-    payload = next((p for p in _load_lines(book) if p.get("scene_id") == scene_id), None)
-    if payload is None:
+    structure = load_structure(book)
+    payload_lines = scene_lines(structure, scene_id, line_payloads=adapter_load_line_payloads(book))
+    if not payload_lines:
         return None
     overrides = load_speaker_overrides(book)
     lines = []
-    for i, l in enumerate(payload.get("lines", [])):
+    for i, l in enumerate(payload_lines):
         l = dict(l)
         apply_speaker_overrides([l], overrides)
         lines.append({
@@ -222,9 +527,10 @@ def scene_detail(book: str, scene_id: str) -> Optional[Dict[str, Any]]:
             "utterance_type": l.get("utterance_type", "speech"),
             "wav": _line_wav_path(l),
         })
-
-    scene_text = next((s.get("text_block", "") for s in (_load_json(os.path.join(t1, "loop3_scenes.json")) or [])
-                       if s.get("scene_id") == scene_id), "")
+    section = resolve_scene(structure, scene_id)
+    if section is None:
+        return None
+    scene_text = structure_scene_text(section, structure)
 
     def _for_scene(path: str) -> Optional[Dict[str, Any]]:
         data = _load_json(path)
@@ -330,6 +636,84 @@ def book_speakers(book: str) -> List[str]:
     return sorted(speakers | {"Narrator"})
 
 
+def director_cast_roster(book: str, *, limit: int = 3) -> Optional[Dict[str, Any]]:
+    book = _safe_book(book)
+    if not book:
+        return None
+    marketplace = _get_marketplace()
+    profiles = _character_profiles(book)
+    roster = []
+    for character in [name for name in book_speakers(book) if name != "Narrator"]:
+        drawer = _get_drawer_info(character)
+        query_text = _character_voice_query(book, character)
+        try:
+            suggestions = marketplace.search_marketplace(query_text, limit=max(1, limit))
+        except Exception:
+            suggestions = []
+        roster.append({
+            "character": character,
+            "query": query_text,
+            "profile": profiles.get(character),
+            "current_voice": drawer.get("voice_ref_path") if drawer else None,
+            "suggestions": suggestions,
+        })
+    return {"book": book, "characters": roster}
+
+
+def director_search_voices(book: str, character: str, *, query: str = "", limit: int = 5) -> Optional[Dict[str, Any]]:
+    book = _safe_book(book)
+    if not book or not (character or "").strip():
+        return None
+    marketplace = _get_marketplace()
+    query_text = _character_voice_query(book, character.strip(), query)
+    results = marketplace.search_marketplace(query_text, limit=max(1, limit))
+    return {
+        "book": book,
+        "character": character.strip(),
+        "query": query_text,
+        "results": results,
+    }
+
+
+def director_cast_character(
+    book: str,
+    character: str,
+    *,
+    description: str = "",
+    buyer: str = "local",
+    purpose: str = "audiobook production",
+    voice_id: str = "",
+) -> Optional[Dict[str, Any]]:
+    book = _safe_book(book)
+    character = (character or "").strip()
+    if not book or not character:
+        return None
+    marketplace = _get_marketplace()
+    if voice_id:
+        cast = marketplace.cast_character_with_voice(
+            character_name=character,
+            voice_id=voice_id,
+            buyer=buyer,
+            purpose=purpose or f"cast as {character}",
+        )
+    else:
+        query_text = _character_voice_query(book, character, description)
+        cast = marketplace.cast_character(
+            character_name=character,
+            character_description=query_text,
+            buyer=buyer,
+            purpose=purpose or f"cast as {character}",
+        )
+    if cast is None:
+        raise ValueError(f"No suitable voice found for character '{character}'")
+    return {
+        "book": book,
+        "character": character,
+        "cast": cast,
+        "current_voice": (_get_drawer_info(character) or {}).get("voice_ref_path"),
+    }
+
+
 def usage_summary(project_id: str = "", book: str = "") -> Dict[str, Any]:
     """The billing meter's read side: aggregate the audit log (and render-job
     wall time) for one project or book. Streams the jsonl -- no index needed
@@ -401,21 +785,28 @@ def export_manuscript(book: str, tier: int) -> Optional[Dict[str, str]]:
         return {"error": "No line artifacts — ingest the book first."}
     overrides = load_speaker_overrides(book)
     omits = load_scene_overrides(book)
-    chapters = _load_json(os.path.join(_tier1_dir(book), "loop2_chapters.json")) or []
-    titles = {c.get("chapter_id"): c.get("title", "") for c in chapters}
+    structure = load_structure(book)
+    titles = {key: chapter.title for key, chapter in chapter_lookup(structure).items()}
+    payload_by_scene = {payload.get("scene_id", ""): payload for payload in payloads}
 
     out: List[str] = [f"# {book} — Tier {tier} "
                       f"{'narration text' if tier == 1 else 'attributed script'}", ""]
     seen_chapters = set()
-    for p in payloads:
-        sid = p.get("scene_id", "")
+    for sid in ordered_scene_ids(structure):
+        p = payload_by_scene.get(sid)
+        if p is None:
+            continue
         if omits.get(sid, {}).get("omit"):
             continue
-        chap = sid.rsplit("_s", 1)[0]
+        scene_section = resolve_scene(structure, sid)
+        chap = scene_section.parent_id if scene_section else sid.rsplit("_s", 1)[0]
+        chapter_section = next((section for section in structure.sections if section.section_id == chap), None)
+        chapter_key = chapter_section.legacy_id if chapter_section and chapter_section.legacy_id else (chap or "")
         if chap not in seen_chapters:
             seen_chapters.add(chap)
-            out += ["", f"## {titles.get(chap) or chap}", ""]
-        out.append(f"[Scene {sid.rsplit('_s', 1)[-1]}]")
+            out += ["", f"## {titles.get(chapter_key) or titles.get(chap) or chap}", ""]
+        scene_label = sid.rsplit("_s", 1)[-1] if "_s" in sid else str(scene_section.order if scene_section else sid)
+        out.append(f"[Scene {scene_label}]")
         out.append("")
         for l in p.get("lines", []):
             l = dict(l)
@@ -468,7 +859,7 @@ def delete_book(book: str) -> Optional[Dict[str, Any]]:
             logger.warning(f"delete_book: project cleanup failed: {e}")
     else:
         # a "new" (never-ingested) source: deleting means the uploaded file
-        for ext in (".txt", ".epub"):
+        for ext in (".txt", ".docx", ".epub"):
             p = os.path.join("data/uploads", book + ext)
             if os.path.exists(p):
                 os.remove(p)

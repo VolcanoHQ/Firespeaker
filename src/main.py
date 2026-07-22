@@ -22,6 +22,12 @@ from src.nlp_analyzer import ManuscriptAnalyzer
 from src.spatial_memory import MemPalace
 from src.voice_synthesizer import VoiceSynthesizer
 from src.audio_mixer import AudioMixer
+from src.book_structure_adapter import (
+    load_line_payloads,
+    load_structure,
+    require_structure_readiness,
+    structure_to_script_data,
+)
 
 # Setup logging
 logging.basicConfig(
@@ -135,8 +141,34 @@ class CalderaPipeline:
         slug = re.sub(r'[^a-zA-Z0-9_\-]', '', base_name)
         tier = self.analyzer.production_tier
         cached_hierarchy_path = f"data/processed/{slug}/Tier_{tier}/hierarchy.json"
-        
-        if os.path.exists(cached_hierarchy_path):
+        canonical_script_data = None
+        canonical_error = None
+        canonical_path = os.path.join("data", "corpus", "pipeline", base_name, "tier1", "book_structure.json")
+        if self.analyzer.production_tier == 1:
+            try:
+                structure = load_structure(
+                    base_name,
+                    source_file=manuscript_path,
+                    source_format=os.path.splitext(manuscript_path)[1].lstrip(".").lower() or "txt",
+                )
+                line_payloads = load_line_payloads(base_name)
+                if line_payloads:
+                    require_structure_readiness(structure, require_analysis=True, operation="render preparation")
+                    canonical_script_data = structure_to_script_data(structure, line_payloads=line_payloads)
+                elif os.path.exists(canonical_path):
+                    canonical_error = ValueError(
+                        f"Canonical structure exists for {base_name} but no Tier 1 line artifacts are available "
+                        "to honor its current ordering."
+                    )
+            except Exception as e:
+                canonical_error = e
+            if canonical_error is not None and os.path.exists(canonical_path):
+                raise canonical_error
+
+        if canonical_script_data is not None:
+            print(f"Loading script data from canonical structure for: {base_name}")
+            script_data = canonical_script_data
+        elif os.path.exists(cached_hierarchy_path):
             print(f"Loading script data from cached hierarchy: {cached_hierarchy_path}")
             with open(cached_hierarchy_path, "r", encoding="utf-8") as f:
                 hierarchy_data = json.load(f)

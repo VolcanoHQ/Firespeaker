@@ -160,7 +160,7 @@
   <div id="booksPane" class="pane">
     <div class="paneTitle">Books</div>
     <button class="ghost" id="uploadBtn" style="width:100%;margin-bottom:8px;padding:7px;border-style:dashed">⬆ Upload manuscript (.txt / .epub)</button>
-    <input type="file" id="uploadInput" accept=".txt,.epub" style="display:none">
+    <input type="file" id="uploadInput" accept=".txt,text/plain,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.epub,application/epub+zip" style="display:none">
     <div id="uploadStatus" class="hint" style="margin-bottom:6px"></div>
     <div id="bookList"><div class="empty">loading…</div></div>
   </div>
@@ -891,7 +891,7 @@ $("#uploadInput").addEventListener("change", async () => {
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ filename: file.name, data: dataUrl }) });
     const j = await resp.json();
-    if (!resp.ok) { $("#uploadStatus").textContent = j.error || "upload failed"; return; }
+    if (!resp.ok) { $("#uploadStatus").textContent = (j.error && j.error.message) || j.error || "upload failed"; return; }
     $("#uploadStatus").textContent = "✓ " + j.book + " uploaded — select it and Generate";
     await loadBooks();
     const card = document.querySelector(`.bookCard[data-book="${CSS.escape(j.book)}"]`);

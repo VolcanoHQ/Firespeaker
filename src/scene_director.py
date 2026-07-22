@@ -30,11 +30,26 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+from src.book_structure_adapter import load_structure, require_structure_readiness, scene_text_map
 from src.models import ManuscriptManifest
 from src.llm_client import query_llm_json
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("SceneDirector")
+
+
+def _canonical_scene_texts(book_stem: str, manifest: ManuscriptManifest) -> Dict[str, str]:
+    structure = load_structure(book_stem, source_file=manifest.source_file)
+    require_structure_readiness(structure, require_analysis=True, operation="scene direction")
+    texts = scene_text_map(structure)
+    if texts:
+        return texts
+    return {
+        scene.scene_id: " ".join(line.text for line in scene.lines)
+        for part in manifest.parts
+        for chapter in part.chapters
+        for scene in chapter.scenes
+    }
 
 
 # ====================================================
@@ -534,12 +549,11 @@ def run_dramatization(manifest_path: str, level: str = "full", rounds: int = 1) 
     """Standalone runner for the Dramatist pass only -> tier3/dramatization.json."""
     with open(manifest_path, "r", encoding="utf-8") as f:
         manifest = ManuscriptManifest.model_validate_json(f.read())
-    book_stem = os.path.splitext(manifest.source_file)[0]
+    book_stem = os.path.splitext(os.path.basename(manifest.source_file))[0]
     tier1_dir = os.path.join("data/corpus/pipeline", book_stem, "tier1")
     tier3_dir = os.path.join("data/corpus/pipeline", book_stem, "tier3")
     os.makedirs(tier3_dir, exist_ok=True)
-    with open(os.path.join(tier1_dir, "loop3_scenes.json"), "r", encoding="utf-8") as f:
-        scene_texts = {s["scene_id"]: s["text_block"] for s in json.load(f)}
+    scene_texts = _canonical_scene_texts(book_stem, manifest)
 
     spotting_by_scene: Dict[str, Dict[str, Any]] = {}
     spotting_path = os.path.join(tier3_dir, "spotting.json")
@@ -609,12 +623,11 @@ def run_sound_design(manifest_path: str) -> str:
     """Standalone runner: sound-design pass only, leaves existing direction artifacts alone."""
     with open(manifest_path, "r", encoding="utf-8") as f:
         manifest = ManuscriptManifest.model_validate_json(f.read())
-    book_stem = os.path.splitext(manifest.source_file)[0]
+    book_stem = os.path.splitext(os.path.basename(manifest.source_file))[0]
     tier1_dir = os.path.join("data/corpus/pipeline", book_stem, "tier1")
     tier3_dir = os.path.join("data/corpus/pipeline", book_stem, "tier3")
     os.makedirs(tier3_dir, exist_ok=True)
-    with open(os.path.join(tier1_dir, "loop3_scenes.json"), "r", encoding="utf-8") as f:
-        scene_texts = {s["scene_id"]: s["text_block"] for s in json.load(f)}
+    scene_texts = _canonical_scene_texts(book_stem, manifest)
 
     spotting_by_scene: Dict[str, Dict[str, Any]] = {}
     spotting_path = os.path.join(tier3_dir, "spotting.json")
@@ -847,12 +860,10 @@ Ground what you can; invent the rest deliberately and mark it inferred."""
 def run_character_design(manifest_path: str, sync_mempalace: bool = True) -> str:
     from src.models import ManuscriptManifest as _MM
     manifest = _MM.model_validate_json(open(manifest_path, encoding="utf-8").read())
-    book_stem = os.path.splitext(manifest.source_file)[0]
-    tier1_dir = os.path.join("data/corpus/pipeline", book_stem, "tier1")
+    book_stem = os.path.splitext(os.path.basename(manifest.source_file))[0]
     tier3_dir = os.path.join("data/corpus/pipeline", book_stem, "tier3")
     os.makedirs(tier3_dir, exist_ok=True)
-    with open(os.path.join(tier1_dir, "loop3_scenes.json"), encoding="utf-8") as f:
-        scene_texts = {s["scene_id"]: s["text_block"] for s in json.load(f)}
+    scene_texts = _canonical_scene_texts(book_stem, manifest)
     bible = analyze_book(book_stem, "\n\n".join(scene_texts.values()))
     profiles = design_characters(manifest, scene_texts, bible=bible)
     out = os.path.join(tier3_dir, "character_profiles.json")
@@ -899,7 +910,7 @@ def run_qc_review(manifest_path: str) -> str:
     the offending artifact text verbatim (grounded against the artifacts)."""
     from src.models import ManuscriptManifest as _MM
     manifest = _MM.model_validate_json(open(manifest_path, encoding="utf-8").read())
-    book_stem = os.path.splitext(manifest.source_file)[0]
+    book_stem = os.path.splitext(os.path.basename(manifest.source_file))[0]
     tier3_dir = os.path.join("data/corpus/pipeline", book_stem, "tier3")
 
     def _load(name):
@@ -1285,13 +1296,11 @@ def direct_manifest(manifest_path: str, sync_mempalace: bool = False) -> Dict[st
     with open(manifest_path, "r", encoding="utf-8") as f:
         manifest = ManuscriptManifest.model_validate_json(f.read())
 
-    book_stem = os.path.splitext(manifest.source_file)[0]
+    book_stem = os.path.splitext(os.path.basename(manifest.source_file))[0]
     tier1_dir = os.path.join("data/corpus/pipeline", book_stem, "tier1")
     tier3_dir = os.path.join("data/corpus/pipeline", book_stem, "tier3")
     os.makedirs(tier3_dir, exist_ok=True)
-
-    with open(os.path.join(tier1_dir, "loop3_scenes.json"), "r", encoding="utf-8") as f:
-        scene_texts = {s["scene_id"]: s["text_block"] for s in json.load(f)}
+    scene_texts = _canonical_scene_texts(book_stem, manifest)
 
     bible = analyze_book(book_stem, "\n\n".join(scene_texts.values()))
 

@@ -6,6 +6,7 @@ Caldera Engine Tier 1 Ingestion Pipeline
 Deterministic, zero-cost text-slicing engine using Pydantic validation.
 """
 
+import io
 import os
 import re
 import sys
@@ -13,8 +14,10 @@ import json
 import hashlib
 import logging
 import time
+import zipfile
 from typing import List, Dict, Any, Literal, Optional, Tuple
 from pydantic import BaseModel, Field
+from xml.etree import ElementTree as ET
 
 # Setup logging
 logging.basicConfig(
@@ -32,6 +35,28 @@ from src.models import (
     PartPayload,
     ManuscriptManifest
 )
+from src.book_structure import materialize_book_structure_from_tier1
+
+_DOCX_NS = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+
+
+def _docx_to_text(raw_bytes: bytes) -> str:
+    try:
+        with zipfile.ZipFile(io.BytesIO(raw_bytes)) as docx:
+            xml_content = docx.read("word/document.xml")
+    except KeyError as exc:
+        raise ValueError("DOCX is missing word/document.xml") from exc
+    except zipfile.BadZipFile as exc:
+        raise ValueError("DOCX is not a valid ZIP package") from exc
+
+    root = ET.fromstring(xml_content)
+    paragraphs = []
+    for para in root.findall(".//w:p", _DOCX_NS):
+        text_runs = para.findall(".//w:t", _DOCX_NS)
+        para_text = "".join(node.text for node in text_runs if node.text)
+        if para_text:
+            paragraphs.append(para_text)
+    return "\n\n".join(paragraphs).strip()
 
 
 # ====================================================
@@ -1031,9 +1056,10 @@ def identify_chapters(part_text: str, part_id: str) -> List[Dict[str, Any]]:
     Slices a Part block into distinct Chapters.
     Gate 2 Fallback: Wraps the text in a single Chapter if no chapters exist.
     """
-    # Matches standard CHAPTER/ACT keywords and roman numeral chapter formats like "I--DOWN THE RABBIT-HOLE"
+    # Matches standard CHAPTER/ACT/LETTER headings and roman numeral chapter
+    # formats like "I--DOWN THE RABBIT-HOLE".
     chapter_pattern = re.compile(
-        r'^\s*(?:(?:CHAPTER|CHAPITRE|ACT)\s+(?:[IVXLCDM]+|[0-9]+|ONE|TWO|THREE|FOUR|FIVE|SIX|SEVEN|EIGHT|NINE|TEN)\b.*|(?:[IVXLCDM]+)(?:--|\s*[-.]\s*).*)$',
+        r'^\s*(?:(?:CHAPTER|CHAPITRE|ACT|LETTER)\s+(?:[IVXLCDM]+|[0-9]+|ONE|TWO|THREE|FOUR|FIVE|SIX|SEVEN|EIGHT|NINE|TEN)\b.*|(?:[IVXLCDM]+)(?:--|\s*[-.]\s*).*)$',
         re.IGNORECASE | re.MULTILINE
     )
     
@@ -1386,6 +1412,10 @@ def ingest_manuscript_tier_1(file_path: str, chapters: str = None, enable_llm_en
         from nlp_engine.epub_ingestion import epub_to_text
         raw_text = epub_to_text(file_path)
         print(f"  [EPUB] Converted spine to {raw_text.count(chr(10)+chr(10)+chr(10)) + 1} chapter block(s).")
+    elif file_path.lower().endswith(".docx"):
+        with open(file_path, "rb") as f:
+            raw_text = _docx_to_text(f.read())
+        print("  [DOCX] Extracted UTF-8 text from word/document.xml.")
     else:
         with open(file_path, "r", encoding="utf-8", errors="replace") as f:
             raw_text = f.read()
@@ -1799,6 +1829,13 @@ def ingest_manuscript_tier_1(file_path: str, chapters: str = None, enable_llm_en
             json.dump(all_llm_sfx_cues, f, indent=4)
         with open(os.path.join(pipeline_dir, "loopE_llm_alias_merges.json"), "w", encoding="utf-8") as f:
             json.dump(alias_groups, f, indent=4)
+
+    materialize_book_structure_from_tier1(
+        pipeline_dir,
+        source_file=file_path,
+        source_format=os.path.splitext(file_path)[1].lstrip(".").lower() or "txt",
+        book_id=base_name,
+    )
 
     manifest = ManuscriptManifest(
         source_file=os.path.basename(file_path),

@@ -28,10 +28,32 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.project_db import ProjectDB
 from src.hierarchical_parser import HierarchicalParser
-from src.nlp_analyzer import TextToScriptPipeline
 from src.tts_compiler import compile_modified_json
-from src.voice_marketplace import VoiceMarketplace
-from src.vllm_client import VLLMClient
+from src.upload_contract import (
+    UploadContractError,
+    error_response,
+    ingest_upload,
+    process_upload,
+    request_from_fastapi_upload,
+    request_from_json,
+    success_response,
+)
+
+try:
+    from src.voice_marketplace import VoiceMarketplace
+except Exception as exc:
+    VoiceMarketplace = None
+    _VOICE_MARKETPLACE_IMPORT_ERROR = exc
+else:
+    _VOICE_MARKETPLACE_IMPORT_ERROR = None
+
+try:
+    from src.vllm_client import VLLMClient
+except Exception as exc:
+    VLLMClient = None
+    _VLLM_IMPORT_ERROR = exc
+else:
+    _VLLM_IMPORT_ERROR = None
 
 # Setup logging
 logging.basicConfig(
@@ -57,8 +79,8 @@ app.add_middleware(
 
 # Initialize engines
 db = ProjectDB()
-marketplace = VoiceMarketplace()
-vllm = VLLMClient()
+marketplace = VoiceMarketplace() if VoiceMarketplace is not None else None
+vllm = VLLMClient() if VLLMClient is not None else None
 
 # Store reference to main loop for thread-safe WebSocket broadcasts
 main_loop = None
@@ -126,6 +148,36 @@ def get_global_characters() -> List[str]:
     except Exception as e:
         logger.warning(f"Could not read characters from MemPalace drawers: {e}")
         return ["Narrator"]
+
+
+def _chapter_text_from_manifest(chapter) -> str:
+    chunks = []
+    for scene in chapter.scenes:
+        scene_text = "\n".join(line.text for line in scene.lines if line.text)
+        if scene_text:
+            chunks.append(scene_text)
+    return "\n\n".join(chunks)
+
+
+def _macro_structure_from_manifest(manifest) -> List[Dict[str, Any]]:
+    macro_structure = []
+    for p_idx, part in enumerate(manifest.parts, 1):
+        part_id = f"part_p{p_idx}"
+        chapters = []
+        for c_idx, chapter in enumerate(part.chapters, 1):
+            chapter_text = _chapter_text_from_manifest(chapter)
+            chapters.append({
+                "chapter_id": f"{part_id}_c{c_idx}",
+                "title": chapter.title,
+                "text_block": chapter_text,
+                "text_block_preview": chapter_text[:200] + "..." if len(chapter_text) > 200 else chapter_text,
+            })
+        macro_structure.append({
+            "part_id": part_id,
+            "title": part.title,
+            "chapters": chapters,
+        })
+    return macro_structure
 
 # ----------------------------------------------------
 # Background Lookahead Processing Workers
@@ -254,86 +306,60 @@ async def upload_manuscript(
     Stores project state and returns the Macro-Structure JSON.
     """
     try:
-        # Resolve inputs
-        upload_filename = ""
-        manuscript_text = ""
-        
         content_type = request.headers.get("content-type", "")
         if "application/json" in content_type:
             body = await request.json()
-            upload_filename = body.get("filename")
-            manuscript_text = body.get("text")
+            upload_request = request_from_json(body, surface="fastapi")
         elif file is not None:
-            upload_filename = file.filename
-            content_bytes = await file.read()
-            manuscript_text = content_bytes.decode("utf-8")
-            
-        if not upload_filename or not manuscript_text:
+            upload_request = await request_from_fastapi_upload(file, surface="fastapi")
+        else:
             raise HTTPException(status_code=400, detail="Missing manuscript parameters. Provide file upload or filename/text body.")
 
-        if not upload_filename.endswith(".txt"):
-            upload_filename += ".txt"
-            
-        # Save manuscript file in corpus directory
-        corpus_path = os.path.join("data/corpus", upload_filename)
-        os.makedirs(os.path.dirname(corpus_path), exist_ok=True)
-        with open(corpus_path, "w", encoding="utf-8") as f:
-            f.write(manuscript_text)
-            
-        logger.info(f"Manuscript saved to: {corpus_path}")
-
-        # Run Loops 1 & 2 (Meso decomposition via HierarchicalParser)
-        parser = HierarchicalParser(use_gpu=False, production_tier=1)
-        tp = TextToScriptPipeline()
-        normalized_text = tp.normalize_typography(manuscript_text)
-        
-        parts_data = parser._split_into_parts(normalized_text)
-        
+        result = process_upload(upload_request)
+        logger.info(f"Manuscript saved to: {result.source_file}")
+        manifest = ingest_upload(result)
+        macro_structure = _macro_structure_from_manifest(manifest)
         project_id = str(uuid.uuid4())[:8]
-        db.create_project(project_id, upload_filename, "awaiting_macro_approval")
-        
-        macro_structure = []
+        db.create_project(project_id, result.filename, "awaiting_macro_approval")
+
         chapter_counter = 0
-        
-        for p_idx, (part_title, part_content) in enumerate(parts_data, 1):
-            part_id = f"part_p{p_idx}"
-            chapters_data = parser._split_into_chapters(part_content, p_idx)
-            
-            chap_list = []
-            for c_idx, (chap_title, chap_content) in enumerate(chapters_data, 1):
+
+        for part in macro_structure:
+            for chapter in part["chapters"]:
                 chapter_counter += 1
-                chap_id = f"{part_id}_c{c_idx}"
-                
                 # Insert chapter record in pending state
                 db.insert_chapter(
                     project_id=project_id,
-                    chapter_id=chap_id,
-                    part_id=part_id,
-                    part_title=part_title,
-                    chapter_title=chap_title,
-                    text_block=chap_content,
+                    chapter_id=chapter["chapter_id"],
+                    part_id=part["part_id"],
+                    part_title=part["title"],
+                    chapter_title=chapter["title"],
+                    text_block=chapter["text_block"],
                     status="pending",
                     order_idx=chapter_counter
                 )
-                
-                chap_list.append({
-                    "chapter_id": chap_id,
-                    "title": chap_title,
-                    "text_block_preview": chap_content[:200] + "..." if len(chap_content) > 200 else chap_content
-                })
-                
-            macro_structure.append({
-                "part_id": part_id,
-                "title": part_title,
-                "chapters": chap_list
-            })
-            
-        return {
-            "project_id": project_id,
-            "filename": upload_filename,
-            "status": "awaiting_macro_approval",
-            "macro_structure": macro_structure
-        }
+
+        response = success_response(result)
+        response["project_id"] = project_id
+        response["project_status"] = "awaiting_macro_approval"
+        response["macro_structure"] = [
+            {
+                "part_id": part["part_id"],
+                "title": part["title"],
+                "chapters": [
+                    {
+                        "chapter_id": chapter["chapter_id"],
+                        "title": chapter["title"],
+                        "text_block_preview": chapter["text_block_preview"],
+                    }
+                    for chapter in part["chapters"]
+                ],
+            }
+            for part in macro_structure
+        ]
+        return response
+    except UploadContractError as e:
+        return JSONResponse(status_code=e.status_code, content=error_response(e.error))
         
     except Exception as e:
         logger.error(f"Upload failed: {e}\n{traceback.format_exc()}")
@@ -658,6 +684,8 @@ class RegisterVoiceRequest(BaseModel):
 @app.post("/api/v1/marketplace/voices")
 def register_marketplace_voice(payload: RegisterVoiceRequest):
     """Registers a cloned voice in the marketplace vector index."""
+    if marketplace is None:
+        raise HTTPException(status_code=503, detail=f"Voice marketplace unavailable: {_VOICE_MARKETPLACE_IMPORT_ERROR}")
     try:
         voice_id = marketplace.register_voice(
             voice_name=payload.voice_name,
@@ -672,6 +700,8 @@ def register_marketplace_voice(payload: RegisterVoiceRequest):
 @app.get("/api/v1/marketplace/search")
 def search_marketplace_voices(query: str, limit: int = 5):
     """Semantically searches the voice marketplace using acoustic vector similarities."""
+    if marketplace is None:
+        raise HTTPException(status_code=503, detail=f"Voice marketplace unavailable: {_VOICE_MARKETPLACE_IMPORT_ERROR}")
     try:
         results = marketplace.search_marketplace(query=query, limit=limit)
         return {"query": query, "results": results}
@@ -690,6 +720,8 @@ class BatchAttributionRequest(BaseModel):
 @app.post("/api/v1/nlp/batch_attribution")
 async def batch_attribution(payload: BatchAttributionRequest):
     """Executes high-throughput batch attribution queries concurrently via vLLM client."""
+    if vllm is None:
+        raise HTTPException(status_code=503, detail=f"vLLM client unavailable: {_VLLM_IMPORT_ERROR}")
     try:
         results = await vllm.query_batch(
             prompts=payload.prompts,
